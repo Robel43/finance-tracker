@@ -1,7 +1,7 @@
-const CACHE = 'birrtrack-v5';
+const CACHE = 'birrtrack-v6';
 const ASSETS = [
   './', './index.html', './styles.css', './app.js', './manifest.webmanifest',
-  './icons/icon-192.png', './icons/icon-512.png'
+  './icons/birrtrack-192-v2.png', './icons/birrtrack-512-v2.png'
 ];
 
 self.addEventListener('install', event => {
