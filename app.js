@@ -14,7 +14,7 @@ const ACCOUNT_EMOJI_PICKS = ['🏦','💰','📱','💵','💳','🐖','🏧','�
 const QUICK_AMOUNTS = [50,100,200,500,1000];
 
 const $app = document.querySelector('#app');
-const state = { page:'dashboard', reportYear:null, reportMonth:null, modal:null, data:null, toast:null, compareA:1, compareB:2, txFilter:{scope:'month',q:'',type:'all',accountId:'all',categoryId:'all'} };
+const state = { page:'dashboard', reportYear:null, reportMonth:null, modal:null, data:null, toast:null, compareA:1, compareB:2, compareSelectedMonth:null, txFilter:{scope:'month',q:'',type:'all',accountId:'all',categoryId:'all'} };
 
 function id(prefix='id'){ return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}`; }
 function money(n=0){ return `${Number(n).toLocaleString(undefined,{maximumFractionDigits:2})} ETB`; }
@@ -126,7 +126,7 @@ function dashboard(){
   return layout(`<div class="page-head"><div><h1>Dashboard</h1><p>🇪🇹 Ethiopian calendar · local data only</p></div>${monthSwitcher()}</div>
     <div class="grid kpis"><div class="card kpi income"><div class="kpi-label">📈 Income</div><div class="kpi-value good">${money(t.income)}</div></div><div class="card kpi expense"><div class="kpi-label">📉 Expenses</div><div class="kpi-value bad">${money(t.expense)}</div></div><div class="card kpi net"><div class="kpi-label">⚖️ Net</div><div class="kpi-value ${t.net>=0?'good':'bad'}">${money(t.net)}</div></div></div>
     ${state.data.templates.length?`<section class="card" style="margin-top:12px"><div class="section-title"><h2>⚡ Quick log</h2></div><div class="chips">${state.data.templates.map(tp=>`<button class="chip quick-chip" data-log-template="${tp.id}">${categoryLabel(tp.categoryId)} ${esc(tp.label)}</button>`).join('')}</div></section>`:''}
-    <div class="grid" style="margin-top:12px;grid-template-columns:1.1fr .9fr"><section class="card"><div class="section-title"><h2>Recent transactions</h2><button class="btn small" data-action="addTx">＋ Add</button></div>${recent.length?`<div class="list">${recent.map(tx=>`<div class="row"><div><div class="row-title">${categoryLabel(tx.categoryId)}</div><div class="row-sub">${dateText(tx.date)} · ${accountLabel(tx.accountId)}${tx.note?` · ${esc(tx.note)}`:''}</div></div><div class="amount ${tx.type==='income'?'good':'bad'}">${tx.type==='income'?'+':'-'}${money(tx.amount)}</div></div>`).join('')}</div>`:'<div class="empty">No transactions this month. 🌱</div>'}</section>
+    <div class="grid dashboard-grid" style="margin-top:12px"><section class="card"><div class="section-title"><h2>Recent transactions</h2><button class="btn small" data-action="addTx">＋ Add</button></div>${recent.length?`<div class="list">${recent.map(tx=>`<div class="row"><div><div class="row-title">${categoryLabel(tx.categoryId)}</div><div class="row-sub">${dateText(tx.date)} · ${accountLabel(tx.accountId)}${tx.note?` · ${esc(tx.note)}`:''}</div></div><div class="amount ${tx.type==='income'?'good':'bad'}">${tx.type==='income'?'+':'-'}${money(tx.amount)}</div></div>`).join('')}</div>`:'<div class="empty">No transactions this month. 🌱</div>'}</section>
     <section class="card"><div class="section-title"><h2>Expense categories</h2></div>${cats.length?`<div class="list">${cats.slice(0,8).map(([cid,val])=>`<div class="row"><div class="row-title">${categoryLabel(cid)}</div><div class="amount">${money(val)}</div></div>`).join('')}</div>`:'<div class="empty">Nothing to show yet.</div>'}</section></div>`);
 }
 
@@ -173,13 +173,37 @@ function loans(){
 }
 
 function compare(){
-  const year=state.reportYear; const yearly=yearTotals(year); const max=Math.max(1,...yearly.flatMap(x=>[x.income,x.expense]));
+  const year=state.reportYear;
+  const yearly=yearTotals(year);
+  const max=Math.max(1,...yearly.flatMap(x=>[x.income,x.expense]));
+  const selectedMonth=state.compareSelectedMonth || state.reportMonth || 1;
+  const selected=yearly[selectedMonth-1] || yearly[0];
   const a=monthTotals(year,state.compareA), b=monthTotals(year,state.compareB);
   const catA=categoryExpenseTotals(year,state.compareA), catB=categoryExpenseTotals(year,state.compareB);
   const categoryIds=[...new Set([...Object.keys(catA),...Object.keys(catB)])].sort((x,y)=>(catB[y]||0)+(catA[y]||0)-(catB[x]||0)-(catA[x]||0));
   const pct=(x,y)=> x===0 ? (y===0?'0%':'—') : `${((y-x)/x*100).toFixed(1)}%`;
-  return layout(`<div class="page-head"><div><h1>Compare</h1><p>📊 12 financial months; Pagumen is included in Nehase.</p></div><div><select id="compareYear">${[year-2,year-1,year,year+1].map(y=>`<option ${y===year?'selected':''}>${y}</option>`).join('')}</select></div></div>
-    <section class="card"><div class="section-title"><h2>Income vs expenses · ${year} E.C.</h2></div><div class="chart">${yearly.map(x=>`<div class="chart-row"><div class="chart-label">${MONTHS[x.month-1]}${x.month===12?' + ጳጉ':''}</div><div class="bars"><div class="bar income" title="Income ${money(x.income)}" style="width:${x.income/max*100}%"></div><div class="bar expense" title="Expenses ${money(x.expense)}" style="width:${x.expense/max*100}%"></div></div></div>`).join('')}</div><div class="legend"><span><i class="dot income"></i>Income</span><span><i class="dot expense"></i>Expenses</span></div></section>
+  const barHeight=value=>value>0?Math.max(4,value/max*100):0;
+  return layout(`<div class="page-head compare-page-head"><div><h1>Compare</h1><p>📊 12 financial months; Pagumen is included in Nehase.</p></div><div class="compare-year-control"><label for="compareYear">Year (E.C.)</label><select id="compareYear" aria-label="Compare year">${[year-2,year-1,year,year+1].map(y=>`<option ${y===year?'selected':''}>${y}</option>`).join('')}</select></div></div>
+    <section class="card compare-chart-card">
+      <div class="section-title compare-chart-title"><div><h2>Income vs expenses · ${year} E.C.</h2><div class="chart-hint">Tap a month to see exact values.</div></div></div>
+      <div class="annual-chart-scroll" role="region" aria-label="Income and expenses by Ethiopian financial month" tabindex="0">
+        <div class="annual-chart">
+          ${yearly.map(x=>`<button type="button" class="month-column ${selectedMonth===x.month?'active':''}" data-compare-month="${x.month}" aria-pressed="${selectedMonth===x.month?'true':'false'}" aria-label="${MONTHS[x.month-1]}: income ${money(x.income)}, expenses ${money(x.expense)}">
+            <span class="month-bars" aria-hidden="true"><i class="vbar income" style="height:${barHeight(x.income)}%"></i><i class="vbar expense" style="height:${barHeight(x.expense)}%"></i></span>
+            <span class="month-name">${MONTHS[x.month-1]}${x.month===12?' + ጳጉ':''}</span>
+          </button>`).join('')}
+        </div>
+      </div>
+      <div class="legend chart-legend"><span><i class="dot income"></i>Income</span><span><i class="dot expense"></i>Expenses</span><span class="chart-swipe-hint">Swipe chart ↔</span></div>
+      <div class="chart-summary" aria-live="polite">
+        <div class="chart-summary-head"><strong id="compareSelectedTitle">${MONTHS[selectedMonth-1]}${selectedMonth===12?' + ጳጉሜ':''}</strong><span class="muted" id="compareSelectedCount">${selected.tx.length} ${selected.tx.length===1?'entry':'entries'}</span></div>
+        <div class="chart-summary-grid">
+          <div class="chart-stat"><span>Income</span><strong class="good" id="compareSelectedIncome">${money(selected.income)}</strong></div>
+          <div class="chart-stat"><span>Expenses</span><strong class="bad" id="compareSelectedExpense">${money(selected.expense)}</strong></div>
+          <div class="chart-stat"><span>Net</span><strong class="${selected.net>=0?'good':'bad'}" id="compareSelectedNet">${money(selected.net)}</strong></div>
+        </div>
+      </div>
+    </section>
     <section class="card" style="margin-top:12px"><div class="section-title"><h2>Compare two months</h2></div><div class="compare-grid"><div class="field"><label>Month A</label><select id="compareA">${Array.from({length:12},(_,i)=>`<option value="${i+1}" ${state.compareA===i+1?'selected':''}>${MONTHS[i]}${i===11?' + ጳጉሜ':''}</option>`).join('')}</select></div><div class="field"><label>Month B</label><select id="compareB">${Array.from({length:12},(_,i)=>`<option value="${i+1}" ${state.compareB===i+1?'selected':''}>${MONTHS[i]}${i===11?' + ጳጉሜ':''}</option>`).join('')}</select></div></div><div class="compare-grid" style="margin-top:12px"><div class="compare-box"><strong>${MONTHS[state.compareA-1]}</strong><div class="metric"><span>Income</span><strong>${money(a.income)}</strong></div><div class="metric"><span>Expenses</span><strong>${money(a.expense)}</strong></div><div class="metric"><span>Net</span><strong>${money(a.net)}</strong></div></div><div class="compare-box"><strong>${MONTHS[state.compareB-1]}</strong><div class="metric"><span>Income</span><strong>${money(b.income)} <small class="muted">${pct(a.income,b.income)}</small></strong></div><div class="metric"><span>Expenses</span><strong>${money(b.expense)} <small class="muted">${pct(a.expense,b.expense)}</small></strong></div><div class="metric"><span>Net</span><strong>${money(b.net)} <small class="muted">${pct(a.net,b.net)}</small></strong></div></div></div><hr/><div class="section-title"><h2>Expense categories</h2></div>${categoryIds.length?`<div class="list">${categoryIds.map(cid=>`<div class="row"><div><div class="row-title">${categoryLabel(cid)}</div><div class="row-sub">${MONTHS[state.compareA-1]} ${money(catA[cid]||0)} → ${MONTHS[state.compareB-1]} ${money(catB[cid]||0)}</div></div><div class="amount">${pct(catA[cid]||0,catB[cid]||0)}</div></div>`).join('')}</div>`:'<div class="empty">Add expenses to compare categories.</div>'}</section>`);
 }
 
@@ -309,6 +333,18 @@ function bind(){
   document.querySelector('#compareYear')?.addEventListener('change',e=>{state.reportYear=Number(e.target.value);render();});
   document.querySelector('#compareA')?.addEventListener('change',e=>{state.compareA=Number(e.target.value);render();});
   document.querySelector('#compareB')?.addEventListener('change',e=>{state.compareB=Number(e.target.value);render();});
+  document.querySelectorAll('[data-compare-month]').forEach(b=>b.onclick=()=>{
+    const month=Number(b.dataset.compareMonth);
+    const t=monthTotals(state.reportYear,month);
+    state.compareSelectedMonth=month;
+    document.querySelectorAll('[data-compare-month]').forEach(x=>{const active=Number(x.dataset.compareMonth)===month;x.classList.toggle('active',active);x.setAttribute('aria-pressed',active?'true':'false');});
+    const title=document.querySelector('#compareSelectedTitle'), count=document.querySelector('#compareSelectedCount'), income=document.querySelector('#compareSelectedIncome'), expense=document.querySelector('#compareSelectedExpense'), net=document.querySelector('#compareSelectedNet');
+    if(title) title.textContent=MONTHS[month-1]+(month===12?' + ጳጉሜ':'');
+    if(count) count.textContent=`${t.tx.length} ${t.tx.length===1?'entry':'entries'}`;
+    if(income) income.textContent=money(t.income);
+    if(expense) expense.textContent=money(t.expense);
+    if(net){ net.textContent=money(t.net); net.classList.toggle('good',t.net>=0); net.classList.toggle('bad',t.net<0); }
+  });
   document.querySelector('#importFile')?.addEventListener('change',async e=>{ try{const text=await e.target.files[0].text(); const p=JSON.parse(text); if(p.backupVersion!==1||p.calendar!=='ethiopian'||!p.data) throw new Error('Not a valid BirrTrack backup.'); state.modal={type:'importPreview',payload:p};render();}catch(err){alert(err.message);} });
   document.querySelectorAll('[data-tx-scope]').forEach(b=>b.onclick=()=>{ state.txFilter.scope=b.dataset.txScope; render(); });
   document.querySelector('#txSearch')?.addEventListener('input',e=>{ state.txFilter.q=e.target.value; refreshTxList(); });
@@ -352,7 +388,7 @@ function bind(){
 }
 
 async function init(){
-  const d=currentEthiopianDate(); state.reportYear=d.year; state.reportMonth=Math.min(d.month,12);
+  const d=currentEthiopianDate(); state.reportYear=d.year; state.reportMonth=Math.min(d.month,12); state.compareSelectedMonth=state.reportMonth;
   await seed(); await render();
   if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
 }
