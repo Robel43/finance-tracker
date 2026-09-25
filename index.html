@@ -4,6 +4,17 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#16324f" />
+  <script>
+    (() => {
+      try {
+        const saved = localStorage.getItem('birrtrack-theme');
+        const theme = saved || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme;
+        document.querySelector('meta[name="theme-color"]').setAttribute('content', theme === 'dark' ? '#0b1220' : '#16324f');
+      } catch (_) {}
+    })();
+  </script>
   <meta name="description" content="🇪🇹 Fully offline Ethiopian calendar personal finance tracker — your data never leaves your phone" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />

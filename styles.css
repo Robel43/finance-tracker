@@ -14,6 +14,8 @@
   --flag-green: #078930;
   --flag-yellow: #fcdd09;
   --flag-red: #da121a;
+  --chart-income: #0067c5;
+  --chart-expense: #e05200;
 }
 * { box-sizing: border-box; }
 html, body { margin:0; min-height:100%; background:var(--bg); color:var(--ink); font-family:-apple-system, "SF Pro Text", "Segoe UI", Roboto, system-ui, sans-serif; }
@@ -93,11 +95,11 @@ textarea { min-height:80px; resize:vertical; }
 .chart-label { font-size:12px; color:var(--muted); }
 .bars { display:grid; gap:5px; }
 .bar { height:9px; border-radius:999px; min-width:2px; }
-.bar.income { background:#2d7a57; }
-.bar.expense { background:#b65a5a; }
+.bar.income { background:var(--chart-income); }
+.bar.expense { background:var(--chart-expense); }
 .legend { display:flex; gap:14px; color:var(--muted); font-size:12px; margin-top:8px; }
 .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; }
-.dot.income { background:#2d7a57; } .dot.expense { background:#b65a5a; }
+.dot.income { background:var(--chart-income); } .dot.expense { background:var(--chart-expense); }
 .compare-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; }
 .compare-box { padding:14px; border:1px solid var(--line); border-radius:14px; }
 .metric { display:flex; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid var(--line); }
@@ -144,8 +146,8 @@ hr { border:0; border-top:1px solid var(--line); margin:14px 0; }
 .month-bars { height:190px; display:flex; align-items:flex-end; justify-content:center; gap:4px; }
 .vbar { display:block; width:13px; min-height:0; border-radius:7px 7px 2px 2px; transition:height .2s ease, transform .12s ease; }
 .month-column:active .vbar { transform:scaleX(.9); }
-.vbar.income { background:#2d7a57; }
-.vbar.expense { background:#b65a5a; }
+.vbar.income { background:var(--chart-income); }
+.vbar.expense { background:var(--chart-expense); }
 .month-name { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:center; font-size:10px; line-height:1.2; }
 .chart-legend { align-items:center; flex-wrap:wrap; margin-top:10px; }
 .chart-swipe-hint { margin-left:auto; }
@@ -205,3 +207,59 @@ hr { border:0; border-top:1px solid var(--line); margin:14px 0; }
   .chart-stat { display:flex; justify-content:space-between; gap:10px; align-items:center; }
   .chart-stat span { margin:0; }
 }
+
+
+/* High-contrast chart palette and persistent dark mode */
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0b1220;
+  --card: #111827;
+  --ink: #f4f7fb;
+  --muted: #a7b2c2;
+  --brand: #2563eb;
+  --brand-2: #60a5fa;
+  --line: #2b3a4f;
+  --good: #4ade9a;
+  --bad: #ff7b86;
+  --warn: #f5bd55;
+  --gold: #f2ca52;
+  --shadow: 0 10px 30px rgba(0,0,0,.34);
+  --chart-income: #4da3ff;
+  --chart-expense: #ff8a3d;
+}
+html[data-theme="dark"] body { background:var(--bg); color:var(--ink); }
+html[data-theme="dark"] .topbar { background:rgba(11,18,32,.94); }
+html[data-theme="dark"] .nav { background:rgba(17,24,39,.96); }
+html[data-theme="dark"] .modal { background:var(--card); color:var(--ink); }
+html[data-theme="dark"] input,
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea,
+html[data-theme="dark"] .icon-btn,
+html[data-theme="dark"] .btn.secondary,
+html[data-theme="dark"] .chip,
+html[data-theme="dark"] .tab,
+html[data-theme="dark"] .chart-stat {
+  background:#0f172a;
+  color:var(--ink);
+  border-color:var(--line);
+}
+html[data-theme="dark"] .quick-chip,
+html[data-theme="dark"] .acc-badge {
+  background:#17263a;
+  border-color:#29415f;
+}
+html[data-theme="dark"] .nav button.active,
+html[data-theme="dark"] .month-column.active {
+  background:rgba(77,163,255,.14);
+}
+html[data-theme="dark"] .month-column:hover { background:rgba(77,163,255,.09); }
+html[data-theme="dark"] .chart-summary { background:#0d1625; }
+html[data-theme="dark"] .notice { background:#2a2112; color:#f4d18c; }
+html[data-theme="dark"] .progress { background:#273449; }
+html[data-theme="dark"] .tab.active,
+html[data-theme="dark"] .chip.active { background:var(--brand); color:white; border-color:var(--brand); }
+html[data-theme="dark"] .empty { color:var(--muted); }
+html[data-theme="dark"] .annual-chart {
+  background:repeating-linear-gradient(to top, transparent 0, transparent calc(25% - 1px), rgba(167,178,194,.12) 25%);
+}
+.theme-toggle { min-width:42px; }
