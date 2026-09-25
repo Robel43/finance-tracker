@@ -1,4 +1,4 @@
-const CACHE = 'birrtrack-v10';
+const CACHE = 'birrtrack-v11';
 const ASSETS = [
   './', './index.html', './styles.css', './app.js', './manifest.webmanifest',
   './icons/birrtrack-192-v2.png', './icons/birrtrack-512-v2.png'
