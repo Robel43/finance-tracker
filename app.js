@@ -107,6 +107,11 @@ function yearTotals(year){ return Array.from({length:12},(_,i)=>({month:i+1,...m
 function categoryExpenseTotals(year,month){
   const out={}; monthTotals(year,month).tx.filter(t=>t.type==='expense').forEach(t=>out[t.categoryId]=(out[t.categoryId]||0)+Number(t.amount)); return out;
 }
+function categoryTotalsByType(year,month,type){
+  const out={};
+  monthTotals(year,month).tx.filter(t=>t.type===type).forEach(t=>out[t.categoryId]=(out[t.categoryId]||0)+Number(t.amount));
+  return out;
+}
 function pctChange(oldValue,newValue){
   if(!oldValue) return newValue ? null : 0;
   return (newValue-oldValue)/oldValue*100;
@@ -187,8 +192,8 @@ function dashboard(){
       <button class="btn secondary small" data-page="accounts">View accounts</button>
     </section>
     <div class="grid kpis dashboard-kpis">
-      <div class="card kpi income"><div class="kpi-label">📈 Income</div><div class="kpi-value">${money(t.income)}</div></div>
-      <div class="card kpi expense"><div class="kpi-label">📉 Expenses</div><div class="kpi-value">${money(t.expense)}</div></div>
+      <button type="button" class="card kpi income kpi-action" data-breakdown="income" aria-label="Show income breakdown"><div class="kpi-label">📈 Income <span class="kpi-open-hint">View breakdown ›</span></div><div class="kpi-value">${money(t.income)}</div></button>
+      <button type="button" class="card kpi expense kpi-action" data-breakdown="expense" aria-label="Show expense breakdown"><div class="kpi-label">📉 Expenses <span class="kpi-open-hint">View breakdown ›</span></div><div class="kpi-value">${money(t.expense)}</div></button>
       <div class="card kpi net"><div class="kpi-label">⚖️ Net</div><div class="kpi-value ${t.net>=0?'good':'bad'}">${money(t.net)}</div></div>
     </div>
     <section class="card insight-card" style="margin-top:12px">
@@ -335,6 +340,26 @@ function dateFields(prefix,d=currentEthiopianDate()){
 }
 function modalHTML(){
   const m=state.modal; if(!m) return '';
+  if(m.type==='breakdown'){
+    const type=m.breakdownType==='income'?'income':'expense';
+    const totals=monthTotals(state.reportYear,state.reportMonth);
+    const total=type==='income'?totals.income:totals.expense;
+    const categoryTotals=categoryTotalsByType(state.reportYear,state.reportMonth,type);
+    const categories=Object.entries(categoryTotals).sort((a,b)=>b[1]-a[1]);
+    const tx=[...totals.tx].filter(t=>t.type===type).sort((a,b)=>dateKey(b.date)-dateKey(a.date));
+    const accentClass=type==='income'?'income-text':'expense-text';
+    const title=type==='income'?'Income':'Expense';
+    return `<div class="modal-wrap"><div class="modal breakdown-modal">
+      <div class="section-title"><div><h2>${type==='income'?'📈':'📉'} ${title} breakdown</h2><div class="row-sub">${MONTHS[state.reportMonth-1]} ${state.reportYear} E.C.${state.reportMonth===12?' + ጳጉሜ':''}</div></div><button class="icon-btn" data-action="closeModal">✕</button></div>
+      <div class="breakdown-total"><span>Total ${title.toLowerCase()}</span><strong class="${accentClass}">${money(total)}</strong><small>${tx.length} ${tx.length===1?'entry':'entries'}</small></div>
+      <div class="breakdown-section"><h3>By category</h3>
+        ${categories.length?`<div class="breakdown-categories">${categories.map(([cid,value])=>{const share=total?value/total*100:0;return `<div class="breakdown-category"><div class="breakdown-category-head"><span>${categoryLabel(cid)}</span><strong>${money(value)}</strong></div><div class="breakdown-bar"><i class="${type}" style="width:${share}%"></i></div><div class="breakdown-share">${share.toFixed(1)}% of ${title.toLowerCase()}</div></div>`;}).join('')}</div>`:'<div class="empty">No category data for this month.</div>'}
+      </div>
+      <div class="breakdown-section"><div class="section-title"><h3>Entries</h3><button class="chip" data-open-breakdown-entries="${type}">View in Entries</button></div>
+        ${tx.length?`<div class="list breakdown-entry-list">${tx.map(item=>`<div class="row"><div><div class="row-title">${categoryLabel(item.categoryId)}</div><div class="row-sub">${dateText(item.date)} · ${accountLabel(item.accountId)}${item.note?` · ${esc(item.note)}`:''}</div></div><div class="amount ${accentClass}">${type==='income'?'+':'-'}${money(item.amount)}</div></div>`).join('')}</div>`:`<div class="empty">No ${title.toLowerCase()} entries this month.</div>`}
+      </div>
+    </div></div>`;
+  }
   if(m.type==='tx'){
     const v = m.values || {type:'expense',amount:'',categoryId:'',accountId:state.data.accounts[0]?.id||'',note:'',date:currentEthiopianDate()};
     const isEdit = !!m.editId;
@@ -398,6 +423,8 @@ function refreshTxList(){ const c=document.querySelector('#txListContainer'); if
 async function render(){ await load(); $app.innerHTML=pageHTML(); bind(); if(state.modal?.type==='tx') syncCategorySelect(); if(state.modal?.type==='template') syncTemplateCategorySelect(); }
 function bind(){
   document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>{state.page=b.dataset.page;render();});
+  document.querySelectorAll('[data-breakdown]').forEach(b=>b.onclick=()=>{state.modal={type:'breakdown',breakdownType:b.dataset.breakdown};render();});
+  document.querySelectorAll('[data-open-breakdown-entries]').forEach(b=>b.onclick=()=>{state.txFilter.scope='month';state.txFilter.type=b.dataset.openBreakdownEntries;state.txFilter.accountId='all';state.txFilter.categoryId='all';state.txFilter.q='';state.modal=null;state.page='transactions';render();});
   document.querySelectorAll('[data-action]').forEach(b=>b.onclick=async()=>{
     const a=b.dataset.action;
     if(a==='addTx'){ const prefs=await getPrefs(); const defAccount=(prefs.lastAccountId && state.data.accounts.some(x=>x.id===prefs.lastAccountId))?prefs.lastAccountId:(state.data.accounts[0]?.id||''); state.modal={type:'tx', values:{type:'expense',amount:'',categoryId:prefs.lastCategoryId?.expense||'',accountId:defAccount,note:'',date:currentEthiopianDate()}}; }
