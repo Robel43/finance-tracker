@@ -26,7 +26,7 @@ function applyTheme(theme,persist=true){
 function toggleTheme(){ applyTheme(currentTheme()==='dark'?'light':'dark'); }
 
 const $app = document.querySelector('#app');
-const state = { page:'dashboard', reportYear:null, reportMonth:null, modal:null, data:null, toast:null, compareA:1, compareB:2, compareSelectedMonth:null, txFilter:{scope:'month',q:'',type:'all',accountId:'all',categoryId:'all'} };
+const state = { page:'dashboard', reportYear:null, reportMonth:null, modal:null, data:null, toast:null, compareA:1, compareB:2, compareSelectedMonth:null, compareMetric:'income-expense', accountHistoryId:null, txFilter:{scope:'month',q:'',type:'all',accountId:'all',categoryId:'all'} };
 
 function id(prefix='id'){ return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}`; }
 function money(n=0){ return `${Number(n).toLocaleString(undefined,{maximumFractionDigits:2})} ETB`; }
@@ -107,6 +107,45 @@ function yearTotals(year){ return Array.from({length:12},(_,i)=>({month:i+1,...m
 function categoryExpenseTotals(year,month){
   const out={}; monthTotals(year,month).tx.filter(t=>t.type==='expense').forEach(t=>out[t.categoryId]=(out[t.categoryId]||0)+Number(t.amount)); return out;
 }
+function pctChange(oldValue,newValue){
+  if(!oldValue) return newValue ? null : 0;
+  return (newValue-oldValue)/oldValue*100;
+}
+function totalAccountBalance(){ return state.data.accounts.reduce((s,a)=>s+accountBalance(a.id),0); }
+function accountBalanceAt(accountId,year,month){
+  const a=state.data.accounts.find(x=>x.id===accountId); let bal=Number(a?.openingBalance||0);
+  const cutoff=year*10000+month*100+99;
+  state.data.transactions.forEach(t=>{ if(t.accountId===accountId && dateKey(t.date)<=cutoff) bal += t.type==='income'?Number(t.amount):-Number(t.amount); });
+  state.data.loans.forEach(l=>{
+    if(l.accountId===accountId && dateKey(l.date)<=cutoff) bal-=Number(l.amount);
+    (l.repayments||[]).forEach(r=>{if(r.accountId===accountId && dateKey(r.date)<=cutoff) bal+=Number(r.amount);});
+  });
+  state.data.transfers.forEach(t=>{if(dateKey(t.date)<=cutoff){if(t.fromAccountId===accountId) bal-=Number(t.amount);if(t.toAccountId===accountId) bal+=Number(t.amount);}});
+  return bal;
+}
+function accountActivity(accountId){
+  const out=[];
+  state.data.transactions.forEach(t=>{if(t.accountId===accountId)out.push({date:t.date,label:categoryName(t.categoryId),amount:t.type==='income'?Number(t.amount):-Number(t.amount),kind:t.type});});
+  state.data.loans.forEach(l=>{
+    if(l.accountId===accountId) out.push({date:l.date,label:`Loan to ${l.person}`,amount:-Number(l.amount),kind:'loan'});
+    (l.repayments||[]).forEach(r=>{if(r.accountId===accountId)out.push({date:r.date,label:`Loan repayment · ${l.person}`,amount:Number(r.amount),kind:'repayment'});});
+  });
+  state.data.transfers.forEach(t=>{
+    if(t.fromAccountId===accountId) out.push({date:t.date,label:`Transfer to ${accountName(t.toAccountId)}`,amount:-Number(t.amount),kind:'transfer'});
+    if(t.toAccountId===accountId) out.push({date:t.date,label:`Transfer from ${accountName(t.fromAccountId)}`,amount:Number(t.amount),kind:'transfer'});
+  });
+  return out.sort((a,b)=>dateKey(b.date)-dateKey(a.date));
+}
+function financialInsights(year,month){
+  const cur=monthTotals(year,month);
+  let py=year, pm=month-1; if(pm<1){pm=12;py--;}
+  const prev=monthTotals(py,pm);
+  const cats=Object.entries(categoryExpenseTotals(year,month)).sort((a,b)=>b[1]-a[1]);
+  const savingsRate=cur.income>0 ? cur.net/cur.income*100 : null;
+  const expenseChange=pctChange(prev.expense,cur.expense);
+  const avgExpense=yearTotals(year).slice(0,month).reduce((s,x)=>s+x.expense,0)/Math.max(1,month);
+  return {cur,prev,cats,savingsRate,expenseChange,avgExpense,biggest:cats[0]||null};
+}
 function loanPaid(l){ return (l.repayments||[]).reduce((s,r)=>s+Number(r.amount),0); }
 function loanOutstanding(l){ return Math.max(0,Number(l.amount)-loanPaid(l)); }
 
@@ -132,16 +171,43 @@ function monthSwitcher(){ return `<div class="month-switcher"><button class="ico
 
 function dashboard(){
   const t=currentMonthData();
-  const recent=[...t.tx].sort((a,b)=>dateKey(b.date)-dateKey(a.date)).slice(0,8);
+  const insights=financialInsights(state.reportYear,state.reportMonth);
+  const recent=[...t.tx].sort((a,b)=>dateKey(b.date)-dateKey(a.date)).slice(0,6);
   const cat=categoryExpenseTotals(state.reportYear,state.reportMonth);
   const cats=Object.entries(cat).sort((a,b)=>b[1]-a[1]);
-  return layout(`<div class="page-head"><div><h1>Dashboard</h1><p>🇪🇹 Ethiopian calendar · local data only</p></div>${monthSwitcher()}</div>
-    <div class="grid kpis"><div class="card kpi income"><div class="kpi-label">📈 Income</div><div class="kpi-value good">${money(t.income)}</div></div><div class="card kpi expense"><div class="kpi-label">📉 Expenses</div><div class="kpi-value bad">${money(t.expense)}</div></div><div class="card kpi net"><div class="kpi-label">⚖️ Net</div><div class="kpi-value ${t.net>=0?'good':'bad'}">${money(t.net)}</div></div></div>
-    ${state.data.templates.length?`<section class="card" style="margin-top:12px"><div class="section-title"><h2>⚡ Quick log</h2></div><div class="chips">${state.data.templates.map(tp=>`<button class="chip quick-chip" data-log-template="${tp.id}">${categoryLabel(tp.categoryId)} ${esc(tp.label)}</button>`).join('')}</div></section>`:''}
-    <div class="grid dashboard-grid" style="margin-top:12px"><section class="card"><div class="section-title"><h2>Recent transactions</h2><button class="btn small" data-action="addTx">＋ Add</button></div>${recent.length?`<div class="list">${recent.map(tx=>`<div class="row"><div><div class="row-title">${categoryLabel(tx.categoryId)}</div><div class="row-sub">${dateText(tx.date)} · ${accountLabel(tx.accountId)}${tx.note?` · ${esc(tx.note)}`:''}</div></div><div class="amount ${tx.type==='income'?'good':'bad'}">${tx.type==='income'?'+':'-'}${money(tx.amount)}</div></div>`).join('')}</div>`:'<div class="empty">No transactions this month. 🌱</div>'}</section>
-    <section class="card"><div class="section-title"><h2>Expense categories</h2></div>${cats.length?`<div class="list">${cats.slice(0,8).map(([cid,val])=>`<div class="row"><div class="row-title">${categoryLabel(cid)}</div><div class="amount">${money(val)}</div></div>`).join('')}</div>`:'<div class="empty">Nothing to show yet.</div>'}</section></div>`);
+  const totalBalance=totalAccountBalance();
+  const outstanding=state.data.loans.reduce((s,l)=>s+loanOutstanding(l),0);
+  const trend=[]; for(let i=5;i>=0;i--){let y=state.reportYear,m=state.reportMonth-i;while(m<1){m+=12;y--;}trend.push({year:y,month:m,...monthTotals(y,m)});}
+  const maxTrend=Math.max(1,...trend.flatMap(x=>[x.income,x.expense]));
+  const rate=insights.savingsRate;
+  const change=insights.expenseChange;
+  return layout(`<div class="page-head"><div><h1>Dashboard</h1><p>🇪🇹 Your money at a glance · local data only</p></div>${monthSwitcher()}</div>
+    <section class="card balance-hero">
+      <div><div class="eyebrow">Total available balance</div><div class="balance-hero-value">${money(totalBalance)}</div><div class="row-sub">Across ${state.data.accounts.length} accounts · ${money(outstanding)} currently loaned out</div></div>
+      <button class="btn secondary small" data-page="accounts">View accounts</button>
+    </section>
+    <div class="grid kpis dashboard-kpis">
+      <div class="card kpi income"><div class="kpi-label">📈 Income</div><div class="kpi-value">${money(t.income)}</div></div>
+      <div class="card kpi expense"><div class="kpi-label">📉 Expenses</div><div class="kpi-value">${money(t.expense)}</div></div>
+      <div class="card kpi net"><div class="kpi-label">⚖️ Net</div><div class="kpi-value ${t.net>=0?'good':'bad'}">${money(t.net)}</div></div>
+    </div>
+    <section class="card insight-card" style="margin-top:12px">
+      <div class="section-title"><div><h2>💡 Financial insights</h2><div class="row-sub">Based on the selected month</div></div><button class="chip" data-page="compare">Explore trends</button></div>
+      <div class="insight-grid">
+        <div class="insight-item"><span>Savings rate</span><strong class="${rate===null?'':rate>=0?'good':'bad'}">${rate===null?'—':rate.toFixed(1)+'%'}</strong><small>Net ÷ income</small></div>
+        <div class="insight-item"><span>Top expense</span><strong>${insights.biggest?categoryLabel(insights.biggest[0]):'—'}</strong><small>${insights.biggest?money(insights.biggest[1]):'No expenses yet'}</small></div>
+        <div class="insight-item"><span>Expense change</span><strong class="${change===null?'':change<=0?'good':'bad'}">${change===null?'New spending':(change>=0?'+':'')+change.toFixed(1)+'%'}</strong><small>vs previous month</small></div>
+        <div class="insight-item"><span>Avg monthly expense</span><strong>${money(insights.avgExpense)}</strong><small>Year to selected month</small></div>
+      </div>
+    </section>
+    <section class="card mini-trend-card" style="margin-top:12px">
+      <div class="section-title"><div><h2>6-month trend</h2><div class="row-sub">Income vs expenses</div></div><div class="legend"><span><i class="dot income"></i>Income</span><span><i class="dot expense"></i>Expenses</span></div></div>
+      <div class="mini-trend">${trend.map(x=>`<div class="mini-trend-col"><div class="mini-trend-bars"><i class="income" style="height:${x.income/maxTrend*100}%"></i><i class="expense" style="height:${x.expense/maxTrend*100}%"></i></div><span>${MONTHS_EN[x.month-1].slice(0,3)}</span></div>`).join('')}</div>
+    </section>
+    ${state.data.templates.length?`<section class="card" style="margin-top:12px"><div class="section-title"><h2>⚡ Quick log</h2><button class="btn small" data-action="addTx">＋ New entry</button></div><div class="chips">${state.data.templates.map(tp=>`<button class="chip quick-chip" data-log-template="${tp.id}">${categoryLabel(tp.categoryId)} ${esc(tp.label)}</button>`).join('')}</div></section>`:''}
+    <div class="grid dashboard-grid" style="margin-top:12px"><section class="card"><div class="section-title"><h2>Recent transactions</h2><button class="btn small" data-action="addTx">＋ Add</button></div>${recent.length?`<div class="list">${recent.map(tx=>`<div class="row"><div><div class="row-title">${categoryLabel(tx.categoryId)}</div><div class="row-sub">${dateText(tx.date)} · ${accountLabel(tx.accountId)}${tx.note?` · ${esc(tx.note)}`:''}</div></div><div class="amount ${tx.type==='income'?'income-text':'expense-text'}">${tx.type==='income'?'+':'-'}${money(tx.amount)}</div></div>`).join('')}</div>`:'<div class="empty">No transactions this month. 🌱</div>'}</section>
+    <section class="card"><div class="section-title"><h2>Expense categories</h2></div>${cats.length?`<div class="list">${cats.slice(0,6).map(([cid,val])=>`<div class="row"><div class="row-title">${categoryLabel(cid)}</div><div class="amount">${money(val)}</div></div>`).join('')}</div>`:'<div class="empty">Nothing to show yet.</div>'}</section></div>`);
 }
-
 function txFilterMatches(tx){
   const f=state.txFilter;
   if(f.scope==='month' && !(tx.date.year===state.reportYear && reportMonthOf(tx.date)===state.reportMonth)) return false;
@@ -187,38 +253,38 @@ function loans(){
 function compare(){
   const year=state.reportYear;
   const yearly=yearTotals(year);
-  const max=Math.max(1,...yearly.flatMap(x=>[x.income,x.expense]));
   const selectedMonth=state.compareSelectedMonth || state.reportMonth || 1;
   const selected=yearly[selectedMonth-1] || yearly[0];
   const a=monthTotals(year,state.compareA), b=monthTotals(year,state.compareB);
   const catA=categoryExpenseTotals(year,state.compareA), catB=categoryExpenseTotals(year,state.compareB);
   const categoryIds=[...new Set([...Object.keys(catA),...Object.keys(catB)])].sort((x,y)=>(catB[y]||0)+(catA[y]||0)-(catB[x]||0)-(catA[x]||0));
   const pct=(x,y)=> x===0 ? (y===0?'0%':'—') : `${((y-x)/x*100).toFixed(1)}%`;
-  const barHeight=value=>value>0?Math.max(4,value/max*100):0;
-  return layout(`<div class="page-head compare-page-head"><div><h1>Compare</h1><p>📊 12 financial months; Pagumen is included in Nehase.</p></div><div class="compare-year-control"><label for="compareYear">Year (E.C.)</label><select id="compareYear" aria-label="Compare year">${[year-2,year-1,year,year+1].map(y=>`<option ${y===year?'selected':''}>${y}</option>`).join('')}</select></div></div>
-    <section class="card compare-chart-card">
-      <div class="section-title compare-chart-title"><div><h2>Income vs expenses · ${year} E.C.</h2><div class="chart-hint">Tap a month to see exact values.</div></div></div>
-      <div class="annual-chart-scroll" role="region" aria-label="Income and expenses by Ethiopian financial month" tabindex="0">
-        <div class="annual-chart">
-          ${yearly.map(x=>`<button type="button" class="month-column ${selectedMonth===x.month?'active':''}" data-compare-month="${x.month}" aria-pressed="${selectedMonth===x.month?'true':'false'}" aria-label="${MONTHS[x.month-1]}: income ${money(x.income)}, expenses ${money(x.expense)}">
-            <span class="month-bars" aria-hidden="true"><i class="vbar income" style="height:${barHeight(x.income)}%"></i><i class="vbar expense" style="height:${barHeight(x.expense)}%"></i></span>
-            <span class="month-name">${MONTHS[x.month-1]}${x.month===12?' + ጳጉ':''}</span>
-          </button>`).join('')}
-        </div>
-      </div>
-      <div class="legend chart-legend"><span><i class="dot income"></i>Income</span><span><i class="dot expense"></i>Expenses</span><span class="chart-swipe-hint">Swipe chart ↔</span></div>
-      <div class="chart-summary" aria-live="polite">
-        <div class="chart-summary-head"><strong id="compareSelectedTitle">${MONTHS[selectedMonth-1]}${selectedMonth===12?' + ጳጉሜ':''}</strong><span class="muted" id="compareSelectedCount">${selected.tx.length} ${selected.tx.length===1?'entry':'entries'}</span></div>
-        <div class="chart-summary-grid">
-          <div class="chart-stat"><span>Income</span><strong class="good" id="compareSelectedIncome">${money(selected.income)}</strong></div>
-          <div class="chart-stat"><span>Expenses</span><strong class="bad" id="compareSelectedExpense">${money(selected.expense)}</strong></div>
-          <div class="chart-stat"><span>Net</span><strong class="${selected.net>=0?'good':'bad'}" id="compareSelectedNet">${money(selected.net)}</strong></div>
-        </div>
+  const ytd=yearly.slice(0,selectedMonth).reduce((o,x)=>({income:o.income+x.income,expense:o.expense+x.expense,net:o.net+x.net}),{income:0,expense:0,net:0});
+  const chartValues=state.compareMetric==='net'?yearly.map(x=>Math.abs(x.net)):yearly.flatMap(x=>[x.income,x.expense]);
+  const max=Math.max(1,...chartValues);
+  const barHeight=value=>value!==0?Math.max(4,Math.abs(value)/max*100):0;
+  return layout(`<div class="page-head compare-page-head"><div><h1>Compare</h1><p>📊 Annual trends, month comparison and category movement.</p></div><div class="compare-year-control"><label for="compareYear">Year (E.C.)</label><select id="compareYear" aria-label="Compare year">${[year-2,year-1,year,year+1].map(y=>`<option ${y===year?'selected':''}>${y}</option>`).join('')}</select></div></div>
+    <div class="grid compare-ytd">
+      <div class="card"><div class="kpi-label">YTD income</div><div class="kpi-value income-text">${money(ytd.income)}</div></div>
+      <div class="card"><div class="kpi-label">YTD expenses</div><div class="kpi-value expense-text">${money(ytd.expense)}</div></div>
+      <div class="card"><div class="kpi-label">YTD net</div><div class="kpi-value ${ytd.net>=0?'good':'bad'}">${money(ytd.net)}</div></div>
+    </div>
+    <section class="card compare-chart-card" style="margin-top:12px">
+      <div class="section-title compare-chart-title"><div><h2>${state.compareMetric==='net'?'Monthly net':'Income vs expenses'} · ${year} E.C.</h2><div class="chart-hint">Tap a month to inspect it.</div></div><div class="tabs compare-metric-tabs"><button class="tab ${state.compareMetric==='income-expense'?'active':''}" data-compare-metric="income-expense">Income / Expense</button><button class="tab ${state.compareMetric==='net'?'active':''}" data-compare-metric="net">Net</button></div></div>
+      <div class="annual-chart-scroll" role="region" aria-label="Annual financial chart" tabindex="0"><div class="annual-chart">
+        ${yearly.map(x=>`<button type="button" class="month-column ${selectedMonth===x.month?'active':''}" data-compare-month="${x.month}" aria-pressed="${selectedMonth===x.month?'true':'false'}">
+          <span class="month-bars" aria-hidden="true">${state.compareMetric==='net'? `<i class="vbar net ${x.net>=0?'positive':'negative'}" style="height:${barHeight(x.net)}%"></i>` : `<i class="vbar income" style="height:${barHeight(x.income)}%"></i><i class="vbar expense" style="height:${barHeight(x.expense)}%"></i>`}</span>
+          <span class="month-name">${MONTHS[x.month-1]}${x.month===12?' + ጳጉ':''}</span>
+        </button>`).join('')}
+      </div></div>
+      <div class="legend chart-legend">${state.compareMetric==='net'?'<span><i class="dot netdot"></i>Net</span>':'<span><i class="dot income"></i>Income</span><span><i class="dot expense"></i>Expenses</span>'}<span class="chart-swipe-hint">Swipe chart ↔</span></div>
+      <div class="chart-summary" aria-live="polite"><div class="chart-summary-head"><strong id="compareSelectedTitle">${MONTHS[selectedMonth-1]}${selectedMonth===12?' + ጳጉሜ':''}</strong><span class="muted" id="compareSelectedCount">${selected.tx.length} ${selected.tx.length===1?'entry':'entries'}</span></div>
+        <div class="chart-summary-grid"><div class="chart-stat"><span>Income</span><strong class="income-text" id="compareSelectedIncome">${money(selected.income)}</strong></div><div class="chart-stat"><span>Expenses</span><strong class="expense-text" id="compareSelectedExpense">${money(selected.expense)}</strong></div><div class="chart-stat"><span>Net</span><strong class="${selected.net>=0?'good':'bad'}" id="compareSelectedNet">${money(selected.net)}</strong></div></div>
+        <button class="btn small secondary view-month-entries" data-view-compare-month="${selectedMonth}">View this month's entries</button>
       </div>
     </section>
-    <section class="card" style="margin-top:12px"><div class="section-title"><h2>Compare two months</h2></div><div class="compare-grid"><div class="field"><label>Month A</label><select id="compareA">${Array.from({length:12},(_,i)=>`<option value="${i+1}" ${state.compareA===i+1?'selected':''}>${MONTHS[i]}${i===11?' + ጳጉሜ':''}</option>`).join('')}</select></div><div class="field"><label>Month B</label><select id="compareB">${Array.from({length:12},(_,i)=>`<option value="${i+1}" ${state.compareB===i+1?'selected':''}>${MONTHS[i]}${i===11?' + ጳጉሜ':''}</option>`).join('')}</select></div></div><div class="compare-grid" style="margin-top:12px"><div class="compare-box"><strong>${MONTHS[state.compareA-1]}</strong><div class="metric"><span>Income</span><strong>${money(a.income)}</strong></div><div class="metric"><span>Expenses</span><strong>${money(a.expense)}</strong></div><div class="metric"><span>Net</span><strong>${money(a.net)}</strong></div></div><div class="compare-box"><strong>${MONTHS[state.compareB-1]}</strong><div class="metric"><span>Income</span><strong>${money(b.income)} <small class="muted">${pct(a.income,b.income)}</small></strong></div><div class="metric"><span>Expenses</span><strong>${money(b.expense)} <small class="muted">${pct(a.expense,b.expense)}</small></strong></div><div class="metric"><span>Net</span><strong>${money(b.net)} <small class="muted">${pct(a.net,b.net)}</small></strong></div></div></div><hr/><div class="section-title"><h2>Expense categories</h2></div>${categoryIds.length?`<div class="list">${categoryIds.map(cid=>`<div class="row"><div><div class="row-title">${categoryLabel(cid)}</div><div class="row-sub">${MONTHS[state.compareA-1]} ${money(catA[cid]||0)} → ${MONTHS[state.compareB-1]} ${money(catB[cid]||0)}</div></div><div class="amount">${pct(catA[cid]||0,catB[cid]||0)}</div></div>`).join('')}</div>`:'<div class="empty">Add expenses to compare categories.</div>'}</section>`);
+    <section class="card" style="margin-top:12px"><div class="section-title"><h2>Compare two months</h2></div><div class="compare-grid"><div class="field"><label>Month A</label><select id="compareA">${Array.from({length:12},(_,i)=>`<option value="${i+1}" ${state.compareA===i+1?'selected':''}>${MONTHS[i]}${i===11?' + ጳጉሜ':''}</option>`).join('')}</select></div><div class="field"><label>Month B</label><select id="compareB">${Array.from({length:12},(_,i)=>`<option value="${i+1}" ${state.compareB===i+1?'selected':''}>${MONTHS[i]}${i===11?' + ጳጉሜ':''}</option>`).join('')}</select></div></div><div class="compare-grid" style="margin-top:12px"><div class="compare-box"><strong>${MONTHS[state.compareA-1]}</strong><div class="metric"><span>Income</span><strong class="income-text">${money(a.income)}</strong></div><div class="metric"><span>Expenses</span><strong class="expense-text">${money(a.expense)}</strong></div><div class="metric"><span>Net</span><strong>${money(a.net)}</strong></div></div><div class="compare-box"><strong>${MONTHS[state.compareB-1]}</strong><div class="metric"><span>Income</span><strong class="income-text">${money(b.income)} <small class="muted">${pct(a.income,b.income)}</small></strong></div><div class="metric"><span>Expenses</span><strong class="expense-text">${money(b.expense)} <small class="muted">${pct(a.expense,b.expense)}</small></strong></div><div class="metric"><span>Net</span><strong>${money(b.net)} <small class="muted">${pct(a.net,b.net)}</small></strong></div></div></div><hr/><div class="section-title"><h2>Expense categories</h2></div>${categoryIds.length?`<div class="list">${categoryIds.map(cid=>`<div class="row"><div><div class="row-title">${categoryLabel(cid)}</div><div class="row-sub">${MONTHS[state.compareA-1]} ${money(catA[cid]||0)} → ${MONTHS[state.compareB-1]} ${money(catB[cid]||0)}</div></div><div class="amount">${pct(catA[cid]||0,catB[cid]||0)}</div></div>`).join('')}</div>`:'<div class="empty">Add expenses to compare categories.</div>'}</section>`);
 }
-
 function accountBalance(accountId){
   const a=state.data.accounts.find(x=>x.id===accountId); let bal=Number(a?.openingBalance||0);
   state.data.transactions.forEach(t=>{ if(t.accountId===accountId) bal += t.type==='income'?Number(t.amount):-Number(t.amount); });
@@ -237,10 +303,17 @@ function accountUsage(accountId){
 function accountUsageTotal(u){ return Object.values(u).reduce((s,n)=>s+n,0); }
 function accounts(){
   const transfers=[...state.data.transfers].sort((a,b)=>dateKey(b.date)-dateKey(a.date));
-  return layout(`<div class="page-head"><div><h1>Accounts</h1><p>Checking, savings, wallet and cash.</p></div><div style="display:flex;gap:8px"><button class="btn secondary" data-action="addTransfer">⇄ Transfer</button><button class="btn" data-action="addAccount">＋ Account</button></div></div><div class="grid">${state.data.accounts.map(a=>`<section class="card account-card"><div class="row"><div class="acc-badge">${accEmoji(a)}</div><div><div class="row-title">${esc(a.name)}</div><div class="row-sub">${esc(a.type)} · opening ${money(a.openingBalance)}</div></div><div><div class="amount">${money(accountBalance(a.id))}</div><div class="row-actions" style="justify-content:flex-end;margin-top:6px"><button class="chip" data-edit-account="${a.id}">Edit</button><button class="chip" data-delete-account="${a.id}">Delete</button></div></div></div></section>`).join('')}</div>
+  const selected=state.accountHistoryId?state.data.accounts.find(a=>a.id===state.accountHistoryId):null;
+  const historyMonths=selected?yearTotals(state.reportYear).map(x=>({month:x.month,balance:accountBalanceAt(selected.id,state.reportYear,x.month)})):[];
+  const historyMax=selected?Math.max(1,...historyMonths.map(x=>Math.abs(x.balance))):1;
+  const activity=selected?accountActivity(selected.id).slice(0,10):[];
+  return layout(`<div class="page-head"><div><h1>Accounts</h1><p>Balances, transfers and account history.</p></div><div class="page-actions"><button class="btn secondary" data-action="addTransfer">⇄ Transfer</button><button class="btn" data-action="addAccount">＋ Account</button></div></div>
+    <div class="grid account-grid">${state.data.accounts.map(a=>`<section class="card account-card ${state.accountHistoryId===a.id?'selected':''}"><div class="row"><div class="acc-badge">${accEmoji(a)}</div><div><div class="row-title">${esc(a.name)}</div><div class="row-sub">${esc(a.type)} · opening ${money(a.openingBalance)}</div></div><div><div class="amount">${money(accountBalance(a.id))}</div><div class="row-actions" style="justify-content:flex-end;margin-top:6px"><button class="chip" data-account-history="${a.id}">History</button><button class="chip" data-edit-account="${a.id}">Edit</button><button class="chip" data-delete-account="${a.id}">Delete</button></div></div></div></section>`).join('')}</div>
+    ${selected?`<section class="card account-history-card" style="margin-top:12px"><div class="section-title"><div><h2>${accEmoji(selected)} ${esc(selected.name)} balance history</h2><div class="row-sub">${state.reportYear} E.C. monthly closing balances</div></div><button class="chip" data-close-account-history>Close</button></div>
+      <div class="account-history-chart">${historyMonths.map(x=>`<div class="history-col"><div class="history-bar-wrap"><i class="${x.balance>=0?'positive':'negative'}" style="height:${Math.max(3,Math.abs(x.balance)/historyMax*100)}%"></i></div><span>${MONTHS_EN[x.month-1].slice(0,3)}</span><small>${Number(x.balance).toLocaleString(undefined,{maximumFractionDigits:0})}</small></div>`).join('')}</div>
+      <div class="section-title history-activity-title"><h2>Recent account activity</h2></div>${activity.length?`<div class="list">${activity.map(x=>`<div class="row"><div><div class="row-title">${esc(x.label)}</div><div class="row-sub">${dateText(x.date)}</div></div><div class="amount ${x.amount>=0?'income-text':'expense-text'}">${x.amount>=0?'+':'-'}${money(Math.abs(x.amount))}</div></div>`).join('')}</div>`:'<div class="empty">No account activity yet.</div>'}</section>`:''}
     <section class="card" style="margin-top:12px"><div class="section-title"><h2>⇄ Transfer history</h2><button class="btn small secondary" data-action="addTransfer">＋ Transfer</button></div>${transfers.length?`<div class="list">${transfers.map(t=>`<div class="row"><div><div class="row-title">${accountLabel(t.fromAccountId)} → ${accountLabel(t.toAccountId)}</div><div class="row-sub">${dateText(t.date)}${t.note?` · ${esc(t.note)}`:''}</div></div><div class="row-end"><div class="amount">${money(t.amount)}</div><div class="row-actions"><button class="chip" data-edit-transfer="${t.id}" title="Edit">✎</button><button class="chip" data-delete-transfer="${t.id}" title="Delete">✕</button></div></div></div>`).join('')}</div>`:'<div class="empty">No transfers yet.</div>'}</section>`);
 }
-
 function settings(){
   const expenseCats=state.data.categories.filter(c=>c.type==='expense');
   const incomeCats=state.data.categories.filter(c=>c.type==='income');
@@ -265,15 +338,19 @@ function modalHTML(){
   if(m.type==='tx'){
     const v = m.values || {type:'expense',amount:'',categoryId:'',accountId:state.data.accounts[0]?.id||'',note:'',date:currentEthiopianDate()};
     const isEdit = !!m.editId;
-    return `<div class="modal-wrap"><div class="modal"><div class="section-title"><h2>${isEdit?'✎ Edit transaction':'➕ Add transaction'}</h2><button class="icon-btn" data-action="closeModal">✕</button></div><form id="txForm"><div class="form-grid">
-      <div class="field"><label>Type</label><select id="txType"><option value="expense" ${v.type==='expense'?'selected':''}>💸 Expense</option><option value="income" ${v.type==='income'?'selected':''}>💰 Income</option></select></div>
-      <div class="field"><label>Amount (ETB)</label><input id="txAmount" type="number" step="0.01" min="0.01" value="${v.amount||''}" required></div>
-      <div class="field full"><label>Quick add</label><div class="chips">${QUICK_AMOUNTS.map(n=>`<button type="button" class="chip" data-action="addAmount" data-amount="${n}">+${n}</button>`).join('')}<button type="button" class="chip" data-action="clearAmount">Clear</button></div></div>
-      <div class="field"><label>Category</label><select id="txCategory"></select></div>
-      <div class="field"><label>Account</label><select id="txAccount">${state.data.accounts.map(a=>`<option value="${a.id}" ${v.accountId===a.id?'selected':''}>${accEmoji(a)} ${esc(a.name)}</option>`).join('')}</select></div>
-      ${dateFields('tx',v.date)}
-      <div class="field full"><label>Note</label><textarea id="txNote" placeholder="Optional">${esc(v.note||'')}</textarea></div>
-    </div><div class="form-actions"><button type="button" class="btn secondary" data-action="closeModal">Cancel</button><button class="btn" type="submit">${isEdit?'Save changes':'Save'}</button></div></form></div></div>`;
+    const recentTx=[...state.data.transactions].sort((a,b)=>dateKey(b.date)-dateKey(a.date)).slice(0,4);
+    const recentAmounts=[...new Set(recentTx.map(x=>Number(x.amount)).filter(Boolean))].slice(0,4);
+    return `<div class="modal-wrap"><div class="modal tx-modal"><div class="section-title"><h2>${isEdit?'✎ Edit transaction':'➕ Add transaction'}</h2><button class="icon-btn" data-action="closeModal">✕</button></div><form id="txForm">
+      <div class="tx-type-toggle"><button type="button" class="${v.type==='expense'?'active':''}" data-set-tx-type="expense">💸 Expense</button><button type="button" class="${v.type==='income'?'active':''}" data-set-tx-type="income">💰 Income</button></div>
+      <select id="txType" class="visually-hidden" aria-hidden="true"><option value="expense" ${v.type==='expense'?'selected':''}>Expense</option><option value="income" ${v.type==='income'?'selected':''}>Income</option></select>
+      <div class="amount-entry"><label for="txAmount">Amount (ETB)</label><input id="txAmount" type="number" inputmode="decimal" step="0.01" min="0.01" value="${v.amount||''}" placeholder="0.00" required></div>
+      <div class="field"><label>Quick amount</label><div class="chips amount-chips">${recentAmounts.map(n=>`<button type="button" class="chip recent-amount" data-set-amount="${n}">${Number(n).toLocaleString()} ETB</button>`).join('')}${QUICK_AMOUNTS.map(n=>`<button type="button" class="chip" data-action="addAmount" data-amount="${n}">+${n}</button>`).join('')}<button type="button" class="chip" data-action="clearAmount">Clear</button></div></div>
+      <div class="form-grid tx-main-fields"><div class="field"><label>Category</label><select id="txCategory"></select></div><div class="field"><label>Account</label><select id="txAccount">${state.data.accounts.map(a=>`<option value="${a.id}" ${v.accountId===a.id?'selected':''}>${accEmoji(a)} ${esc(a.name)}</option>`).join('')}</select></div></div>
+      <div class="tx-date-head"><label>Date (E.C.)</label><button type="button" class="chip" data-action="txToday">Today</button></div><div class="form-grid tx-date-grid">${dateFields('tx',v.date)}</div>
+      <div class="field"><label>Note</label><textarea id="txNote" placeholder="Optional note">${esc(v.note||'')}</textarea></div>
+      ${!isEdit&&recentTx.length?`<div class="field recent-repeat"><label>Repeat a recent entry</label><div class="chips">${recentTx.map(tx=>`<button type="button" class="chip" data-repeat-recent="${tx.id}">${categoryLabel(tx.categoryId)} · ${money(tx.amount)}</button>`).join('')}</div></div>`:''}
+      <div class="form-actions sticky-actions"><button type="button" class="btn secondary" data-action="closeModal">Cancel</button><button class="btn" type="submit">${isEdit?'Save changes':'Save transaction'}</button></div>
+    </form></div></div>`;
   }
   if(m.type==='loan'){ const l=m.loanId?state.data.loans.find(x=>x.id===m.loanId):null; const paid=l?loanPaid(l):0; return `<div class="modal-wrap"><div class="modal"><div class="section-title"><h2>${l?'✎ Edit loan':'🤝 New loan'}</h2><button class="icon-btn" data-action="closeModal">✕</button></div><form id="loanForm">${l&&paid?`<div class="notice">Already repaid: <strong>${money(paid)}</strong>. The loan amount cannot be reduced below this.</div>`:''}<div class="form-grid" style="margin-top:${l&&paid?'12px':'0'}"><div class="field"><label>Person</label><input id="loanPerson" value="${l?esc(l.person):''}" required></div><div class="field"><label>Amount loaned (ETB)</label><input id="loanAmount" type="number" step="0.01" min="${Math.max(0.01,paid)}" value="${l?l.amount:''}" required></div><div class="field"><label>Paid from</label><select id="loanAccount">${state.data.accounts.map(a=>`<option value="${a.id}" ${l?.accountId===a.id?'selected':''}>${accEmoji(a)} ${esc(a.name)}</option>`).join('')}</select></div>${dateFields('loan',l?.date||currentEthiopianDate())}<div class="field full"><label>Note</label><textarea id="loanNote">${l?esc(l.note||''):''}</textarea></div></div><div class="form-actions"><button type="button" class="btn secondary" data-action="closeModal">Cancel</button><button class="btn">${l?'Save changes':'Save loan'}</button></div></form></div></div>`; }
   if(m.type==='repay') { const l=state.data.loans.find(x=>x.id===m.loanId); const r=m.repaymentId?(l.repayments||[]).find(x=>x.id===m.repaymentId):null; const maxAmount=loanOutstanding(l)+(r?Number(r.amount):0); return `<div class="modal-wrap"><div class="modal"><div class="section-title"><h2>${r?'✎ Edit repayment':`💵 Repayment from ${esc(l.person)}`}</h2><button class="icon-btn" data-action="closeModal">✕</button></div><form id="repayForm"><div class="notice">Available principal: <strong>${money(maxAmount)}</strong>. Principal repayments are not counted as income.</div><div class="form-grid" style="margin-top:12px"><div class="field"><label>Principal returned (ETB)</label><input id="repayAmount" type="number" step="0.01" min="0.01" max="${maxAmount}" value="${r?r.amount:''}" required></div><div class="field"><label>Received into</label><select id="repayAccount">${state.data.accounts.map(a=>`<option value="${a.id}" ${r?.accountId===a.id?'selected':''}>${accEmoji(a)} ${esc(a.name)}</option>`).join('')}</select></div>${dateFields('repay',r?.date||currentEthiopianDate())}<div class="field full"><label>Note</label><textarea id="repayNote">${r?esc(r.note||''):''}</textarea></div></div><div class="form-actions"><button type="button" class="btn secondary" data-action="closeModal">Cancel</button><button class="btn">${r?'Save changes':'Save repayment'}</button></div></form></div></div>`; }
@@ -337,27 +414,34 @@ function bind(){
     if(a==='exportCsv') exportCSV();
     if(a==='addAmount'){ const inp=document.querySelector('#txAmount'); const cur=Number(inp.value)||0; inp.value=String(cur+Number(b.dataset.amount)); return; }
     if(a==='clearAmount'){ const inp=document.querySelector('#txAmount'); if(inp) inp.value=''; return; }
+    if(a==='txToday'){ const d=currentEthiopianDate(); const y=document.querySelector('#txYear'),m=document.querySelector('#txMonth'),day=document.querySelector('#txDay'); if(y)y.value=d.year;if(m)m.value=d.month;if(day)day.value=d.day; return; }
     if(a==='pickEmoji'){ const target=document.querySelector(`#${b.dataset.target}`); if(target) target.value=b.dataset.emoji; return; }
     if(a==='wipe'){ if(confirm('Delete all local BirrTrack data? This cannot be undone unless you have a backup.')){ for(const s of STORES) await db.clear(s); await seed(); toast('Local data deleted'); return; } }
     if(a==='confirmImport'){ const p=state.modal.payload; for(const s of STORES){ await db.clear(s); for(const item of (p.data[s]||[])) await db.put(s,item); } state.modal=null; toast('Backup restored'); return; }
     render();
   });
   document.querySelector('#txType')?.addEventListener('change',syncCategorySelect);
+  document.querySelectorAll('[data-set-tx-type]').forEach(b=>b.onclick=()=>{const sel=document.querySelector('#txType');if(!sel)return;sel.value=b.dataset.setTxType;document.querySelectorAll('[data-set-tx-type]').forEach(x=>x.classList.toggle('active',x===b));syncCategorySelect();});
+  document.querySelectorAll('[data-set-amount]').forEach(b=>b.onclick=()=>{const inp=document.querySelector('#txAmount');if(inp)inp.value=b.dataset.setAmount;});
+  document.querySelectorAll('[data-repeat-recent]').forEach(b=>b.onclick=()=>{const tx=state.data.transactions.find(x=>x.id===b.dataset.repeatRecent);if(!tx)return;const type=document.querySelector('#txType'),amount=document.querySelector('#txAmount'),account=document.querySelector('#txAccount'),note=document.querySelector('#txNote');if(type)type.value=tx.type;if(amount)amount.value=tx.amount;if(account)account.value=tx.accountId;if(note)note.value=tx.note||'';state.modal.values={...(state.modal.values||{}),categoryId:tx.categoryId};document.querySelectorAll('[data-set-tx-type]').forEach(x=>x.classList.toggle('active',x.dataset.setTxType===tx.type));syncCategorySelect();});
   document.querySelector('#tplType')?.addEventListener('change',syncTemplateCategorySelect);
   document.querySelector('#compareYear')?.addEventListener('change',e=>{state.reportYear=Number(e.target.value);render();});
   document.querySelector('#compareA')?.addEventListener('change',e=>{state.compareA=Number(e.target.value);render();});
   document.querySelector('#compareB')?.addEventListener('change',e=>{state.compareB=Number(e.target.value);render();});
+  document.querySelectorAll('[data-compare-metric]').forEach(b=>b.onclick=()=>{state.compareMetric=b.dataset.compareMetric;render();});
+  document.querySelectorAll('[data-view-compare-month]').forEach(b=>b.onclick=()=>{state.reportMonth=Number(b.dataset.viewCompareMonth);state.txFilter.scope='month';state.page='transactions';render();});
   document.querySelectorAll('[data-compare-month]').forEach(b=>b.onclick=()=>{
     const month=Number(b.dataset.compareMonth);
     const t=monthTotals(state.reportYear,month);
     state.compareSelectedMonth=month;
     document.querySelectorAll('[data-compare-month]').forEach(x=>{const active=Number(x.dataset.compareMonth)===month;x.classList.toggle('active',active);x.setAttribute('aria-pressed',active?'true':'false');});
-    const title=document.querySelector('#compareSelectedTitle'), count=document.querySelector('#compareSelectedCount'), income=document.querySelector('#compareSelectedIncome'), expense=document.querySelector('#compareSelectedExpense'), net=document.querySelector('#compareSelectedNet');
+    const title=document.querySelector('#compareSelectedTitle'), count=document.querySelector('#compareSelectedCount'), income=document.querySelector('#compareSelectedIncome'), expense=document.querySelector('#compareSelectedExpense'), net=document.querySelector('#compareSelectedNet'), view=document.querySelector('[data-view-compare-month]');
     if(title) title.textContent=MONTHS[month-1]+(month===12?' + ጳጉሜ':'');
     if(count) count.textContent=`${t.tx.length} ${t.tx.length===1?'entry':'entries'}`;
     if(income) income.textContent=money(t.income);
     if(expense) expense.textContent=money(t.expense);
     if(net){ net.textContent=money(t.net); net.classList.toggle('good',t.net>=0); net.classList.toggle('bad',t.net<0); }
+    if(view) view.dataset.viewCompareMonth=String(month);
   });
   document.querySelector('#importFile')?.addEventListener('change',async e=>{ try{const text=await e.target.files[0].text(); const p=JSON.parse(text); if(p.backupVersion!==1||p.calendar!=='ethiopian'||!p.data) throw new Error('Not a valid BirrTrack backup.'); state.modal={type:'importPreview',payload:p};render();}catch(err){alert(err.message);} });
   document.querySelectorAll('[data-tx-scope]').forEach(b=>b.onclick=()=>{ state.txFilter.scope=b.dataset.txScope; render(); });
@@ -371,6 +455,8 @@ function bind(){
   document.querySelectorAll('[data-repay-loan]').forEach(b=>b.onclick=()=>{state.modal={type:'repay',loanId:b.dataset.repayLoan};render();});
   document.querySelectorAll('[data-edit-repayment]').forEach(b=>b.onclick=()=>{state.modal={type:'repay',loanId:b.dataset.loanId,repaymentId:b.dataset.editRepayment};render();});
   document.querySelectorAll('[data-delete-repayment]').forEach(b=>b.onclick=async()=>{if(!confirm('Delete this repayment?'))return;const l=state.data.loans.find(x=>x.id===b.dataset.loanId);l.repayments=(l.repayments||[]).filter(r=>r.id!==b.dataset.deleteRepayment);await db.put('loans',l);toast('Repayment deleted');});
+  document.querySelectorAll('[data-account-history]').forEach(b=>b.onclick=()=>{state.accountHistoryId=b.dataset.accountHistory;render();});
+  document.querySelectorAll('[data-close-account-history]').forEach(b=>b.onclick=()=>{state.accountHistoryId=null;render();});
   document.querySelectorAll('[data-edit-account]').forEach(b=>b.onclick=()=>{state.modal={type:'account',accountId:b.dataset.editAccount};render();});
   document.querySelectorAll('[data-delete-account]').forEach(b=>b.onclick=async()=>{const aid=b.dataset.deleteAccount;if(state.data.accounts.length<=1){alert('Keep at least one account so transactions and loans always have somewhere to be recorded.');return;}const u=accountUsage(aid);if(accountUsageTotal(u)>0){const used=Object.entries(u).filter(([,n])=>n).map(([k,n])=>`${n} ${k}`).join(', ');alert(`This account is still used by ${used}. Move or delete those records first, then delete the account.`);return;}const a=accountObj(aid);if(confirm(`Delete ${a?.name||'this account'}?`)){await db.del('accounts',aid);const prefs=await getPrefs();if(prefs.lastAccountId===aid){prefs.lastAccountId=null;await savePrefs(prefs);}toast('Account deleted');}});
   document.querySelectorAll('[data-edit-transfer]').forEach(b=>b.onclick=()=>{state.modal={type:'transfer',transferId:b.dataset.editTransfer};render();});
