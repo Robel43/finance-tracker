@@ -435,12 +435,13 @@ function bind(){
     const t=monthTotals(state.reportYear,month);
     state.compareSelectedMonth=month;
     document.querySelectorAll('[data-compare-month]').forEach(x=>{const active=Number(x.dataset.compareMonth)===month;x.classList.toggle('active',active);x.setAttribute('aria-pressed',active?'true':'false');});
-    const title=document.querySelector('#compareSelectedTitle'), count=document.querySelector('#compareSelectedCount'), income=document.querySelector('#compareSelectedIncome'), expense=document.querySelector('#compareSelectedExpense'), net=document.querySelector('#compareSelectedNet');
+    const title=document.querySelector('#compareSelectedTitle'), count=document.querySelector('#compareSelectedCount'), income=document.querySelector('#compareSelectedIncome'), expense=document.querySelector('#compareSelectedExpense'), net=document.querySelector('#compareSelectedNet'), view=document.querySelector('[data-view-compare-month]');
     if(title) title.textContent=MONTHS[month-1]+(month===12?' + ጳጉሜ':'');
     if(count) count.textContent=`${t.tx.length} ${t.tx.length===1?'entry':'entries'}`;
     if(income) income.textContent=money(t.income);
     if(expense) expense.textContent=money(t.expense);
     if(net){ net.textContent=money(t.net); net.classList.toggle('good',t.net>=0); net.classList.toggle('bad',t.net<0); }
+    if(view) view.dataset.viewCompareMonth=String(month);
   });
   document.querySelector('#importFile')?.addEventListener('change',async e=>{ try{const text=await e.target.files[0].text(); const p=JSON.parse(text); if(p.backupVersion!==1||p.calendar!=='ethiopian'||!p.data) throw new Error('Not a valid BirrTrack backup.'); state.modal={type:'importPreview',payload:p};render();}catch(err){alert(err.message);} });
   document.querySelectorAll('[data-tx-scope]').forEach(b=>b.onclick=()=>{ state.txFilter.scope=b.dataset.txScope; render(); });
