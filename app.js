@@ -344,19 +344,41 @@ function modalHTML(){
     const type=m.breakdownType==='income'?'income':'expense';
     const totals=monthTotals(state.reportYear,state.reportMonth);
     const total=type==='income'?totals.income:totals.expense;
-    const categoryTotals=categoryTotalsByType(state.reportYear,state.reportMonth,type);
-    const categories=Object.entries(categoryTotals).sort((a,b)=>b[1]-a[1]);
     const tx=[...totals.tx].filter(t=>t.type===type).sort((a,b)=>dateKey(b.date)-dateKey(a.date));
+    const grouped={};
+    tx.forEach(item=>{
+      if(!grouped[item.categoryId]) grouped[item.categoryId]={total:0,count:0};
+      grouped[item.categoryId].total+=Number(item.amount);
+      grouped[item.categoryId].count+=1;
+    });
+    const categories=Object.entries(grouped).sort((a,b)=>b[1].total-a[1].total);
     const accentClass=type==='income'?'income-text':'expense-text';
     const title=type==='income'?'Income':'Expense';
     return `<div class="modal-wrap"><div class="modal breakdown-modal">
       <div class="section-title"><div><h2>${type==='income'?'📈':'📉'} ${title} breakdown</h2><div class="row-sub">${MONTHS[state.reportMonth-1]} ${state.reportYear} E.C.${state.reportMonth===12?' + ጳጉሜ':''}</div></div><button class="icon-btn" data-action="closeModal">✕</button></div>
-      <div class="breakdown-total"><span>Total ${title.toLowerCase()}</span><strong class="${accentClass}">${money(total)}</strong><small>${tx.length} ${tx.length===1?'entry':'entries'}</small></div>
-      <div class="breakdown-section"><h3>By category</h3>
-        ${categories.length?`<div class="breakdown-categories">${categories.map(([cid,value])=>{const share=total?value/total*100:0;return `<div class="breakdown-category"><div class="breakdown-category-head"><span>${categoryLabel(cid)}</span><strong>${money(value)}</strong></div><div class="breakdown-bar"><i class="${type}" style="width:${share}%"></i></div><div class="breakdown-share">${share.toFixed(1)}% of ${title.toLowerCase()}</div></div>`;}).join('')}</div>`:'<div class="empty">No category data for this month.</div>'}
+
+      <div class="breakdown-total">
+        <span>Total ${title.toLowerCase()} this month</span>
+        <strong class="${accentClass}">${money(total)}</strong>
+        <small>${tx.length} ${tx.length===1?'entry':'entries'} across ${categories.length} ${categories.length===1?'category':'categories'}</small>
       </div>
-      <div class="breakdown-section"><div class="section-title"><h3>Entries</h3><button class="chip" data-open-breakdown-entries="${type}">View in Entries</button></div>
-        ${tx.length?`<div class="list breakdown-entry-list">${tx.map(item=>`<div class="row"><div><div class="row-title">${categoryLabel(item.categoryId)}</div><div class="row-sub">${dateText(item.date)} · ${accountLabel(item.accountId)}${item.note?` · ${esc(item.note)}`:''}</div></div><div class="amount ${accentClass}">${type==='income'?'+':'-'}${money(item.amount)}</div></div>`).join('')}</div>`:`<div class="empty">No ${title.toLowerCase()} entries this month.</div>`}
+
+      <div class="breakdown-section">
+        <div class="breakdown-heading"><div><h3>Monthly category totals</h3><p>Repeated entries in the same category are added together.</p></div></div>
+        ${categories.length?`<div class="breakdown-summary-list">${categories.map(([cid,data])=>{const share=total?data.total/total*100:0;return `
+          <div class="breakdown-summary-row">
+            <div class="breakdown-summary-main">
+              <div class="breakdown-category-name">${categoryLabel(cid)}</div>
+              <div class="breakdown-meta">${data.count} ${data.count===1?'entry':'entries'} · ${share.toFixed(1)}% of total</div>
+              <div class="breakdown-bar"><i class="${type}" style="width:${share}%"></i></div>
+            </div>
+            <strong class="breakdown-category-total ${accentClass}">${money(data.total)}</strong>
+          </div>`;}).join('')}</div>`:'<div class="empty">No category data for this month.</div>'}
+      </div>
+
+      <div class="breakdown-section">
+        <div class="section-title"><h3>Individual entries</h3><button class="chip" data-open-breakdown-entries="${type}">View in Entries</button></div>
+        ${tx.length?`<details class="breakdown-details"><summary>Show ${tx.length} ${title.toLowerCase()} ${tx.length===1?'entry':'entries'}</summary><div class="list breakdown-entry-list">${tx.map(item=>`<div class="row"><div><div class="row-title">${categoryLabel(item.categoryId)}</div><div class="row-sub">${dateText(item.date)} · ${accountLabel(item.accountId)}${item.note?` · ${esc(item.note)}`:''}</div></div><div class="amount ${accentClass}">${type==='income'?'+':'-'}${money(item.amount)}</div></div>`).join('')}</div></details>`:`<div class="empty">No ${title.toLowerCase()} entries this month.</div>`}
       </div>
     </div></div>`;
   }
