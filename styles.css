@@ -39,9 +39,13 @@ main { width:min(920px, 100%); margin:0 auto; padding:16px; }
 .grid.kpis { grid-template-columns:repeat(3,1fr); }
 .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; box-shadow:var(--shadow); }
 .kpi { border-left:4px solid var(--line); }
-.kpi.income { border-left-color:var(--good); }
-.kpi.expense { border-left-color:var(--bad); }
+.kpi.income { border-left-color:var(--chart-income); }
+.kpi.expense { border-left-color:var(--chart-expense); }
 .kpi.net { border-left-color:var(--brand-2); }
+.kpi.income .kpi-value { color:var(--chart-income); }
+.kpi.expense .kpi-value { color:var(--chart-expense); }
+#compareSelectedIncome { color:var(--chart-income) !important; }
+#compareSelectedExpense { color:var(--chart-expense) !important; }
 .kpi-label { color:var(--muted); font-size:13px; }
 .kpi-value { margin-top:7px; font-size:22px; font-weight:850; }
 .good { color:var(--good); } .bad { color:var(--bad); } .muted { color:var(--muted); }
