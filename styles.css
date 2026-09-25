@@ -382,3 +382,35 @@ html[data-theme="dark"] .breakdown-total { background:#0d1625; }
   .breakdown-total strong { font-size:24px; }
   .breakdown-category-head { align-items:flex-start; }
 }
+
+
+/* Monthly category aggregation view */
+.breakdown-heading { margin-bottom:10px; }
+.breakdown-heading h3 { margin:0; font-size:15px; }
+.breakdown-heading p { margin:4px 0 0; color:var(--muted); font-size:12px; }
+.breakdown-summary-list { display:grid; gap:8px; }
+.breakdown-summary-row {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:14px;
+  align-items:center;
+  padding:13px;
+  border:1px solid var(--line);
+  border-radius:13px;
+  background:color-mix(in srgb,var(--card) 95%,var(--bg));
+}
+.breakdown-summary-main { min-width:0; }
+.breakdown-category-name { font-weight:800; }
+.breakdown-meta { margin-top:3px; color:var(--muted); font-size:11px; }
+.breakdown-category-total { white-space:nowrap; font-size:15px; }
+.breakdown-summary-row .breakdown-bar { margin-top:8px; }
+.breakdown-details { border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+.breakdown-details summary { cursor:pointer; padding:12px 14px; font-weight:750; color:var(--muted); }
+.breakdown-details[open] summary { border-bottom:1px solid var(--line); }
+.breakdown-details .breakdown-entry-list { padding:0 14px; }
+html[data-theme="dark"] .breakdown-summary-row { background:#0d1625; }
+
+@media (max-width:480px) {
+  .breakdown-summary-row { grid-template-columns:minmax(0,1fr); gap:8px; }
+  .breakdown-category-total { font-size:16px; }
+}
