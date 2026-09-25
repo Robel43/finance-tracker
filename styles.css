@@ -340,3 +340,45 @@ html[data-theme="dark"] .annual-chart {
 html[data-theme="dark"] .insight-item,
 html[data-theme="dark"] .balance-hero { background:#0d1625; }
 html[data-theme="dark"] .tx-type-toggle button { background:#0f172a; }
+
+
+/* Dashboard income/expense drill-down */
+.kpi-action {
+  width:100%;
+  text-align:left;
+  color:var(--ink);
+  font:inherit;
+  cursor:pointer;
+  transition:transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+}
+.kpi-action:hover { transform:translateY(-1px); }
+.kpi-action:active { transform:scale(.985); }
+.kpi-action:focus-visible { outline:3px solid color-mix(in srgb,var(--brand-2) 35%,transparent); outline-offset:2px; }
+.kpi-action.income:hover { border-color:var(--chart-income); }
+.kpi-action.expense:hover { border-color:var(--chart-expense); }
+.kpi-open-hint { float:right; font-size:11px; font-weight:700; color:var(--muted); margin-left:8px; }
+.breakdown-modal { width:min(640px,100%); }
+.breakdown-total { display:grid; gap:5px; padding:16px; border:1px solid var(--line); border-radius:14px; background:color-mix(in srgb,var(--card) 90%,var(--bg)); }
+.breakdown-total span { color:var(--muted); font-size:12px; font-weight:700; }
+.breakdown-total strong { font-size:28px; line-height:1.1; }
+.breakdown-total small { color:var(--muted); }
+.breakdown-section { margin-top:18px; }
+.breakdown-section h3 { margin:0 0 10px; font-size:14px; }
+.breakdown-categories { display:grid; gap:12px; }
+.breakdown-category { padding:12px; border:1px solid var(--line); border-radius:12px; }
+.breakdown-category-head { display:flex; justify-content:space-between; gap:12px; align-items:center; }
+.breakdown-category-head span { font-weight:750; min-width:0; }
+.breakdown-category-head strong { white-space:nowrap; }
+.breakdown-bar { height:8px; margin-top:9px; background:color-mix(in srgb,var(--line) 75%,transparent); border-radius:99px; overflow:hidden; }
+.breakdown-bar i { display:block; height:100%; border-radius:inherit; }
+.breakdown-bar i.income { background:var(--chart-income); }
+.breakdown-bar i.expense { background:var(--chart-expense); }
+.breakdown-share { margin-top:5px; color:var(--muted); font-size:11px; }
+.breakdown-entry-list { max-height:310px; overflow:auto; }
+html[data-theme="dark"] .breakdown-total { background:#0d1625; }
+
+@media (max-width:480px) {
+  .kpi-open-hint { display:block; float:none; margin:3px 0 0; }
+  .breakdown-total strong { font-size:24px; }
+  .breakdown-category-head { align-items:flex-start; }
+}
