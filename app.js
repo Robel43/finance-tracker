@@ -207,7 +207,10 @@ function dashboard(){
     </section>
     <section class="card mini-trend-card" style="margin-top:12px">
       <div class="section-title"><div><h2>6-month trend</h2><div class="row-sub">Income vs expenses</div></div><div class="legend"><span><i class="dot income"></i>Income</span><span><i class="dot expense"></i>Expenses</span></div></div>
-      <div class="mini-trend">${trend.map(x=>`<div class="mini-trend-col"><div class="mini-trend-bars"><i class="income" style="height:${x.income/maxTrend*100}%"></i><i class="expense" style="height:${x.expense/maxTrend*100}%"></i></div><span>${MONTHS_EN[x.month-1].slice(0,3)}</span></div>`).join('')}</div>
+      <div class="mini-trend">${trend.map(x=>`<div class="mini-trend-col"><div class="mini-trend-bars">
+        <button type="button" class="mini-bar income" data-trend-bar data-trend-value="${money(x.income)}" aria-label="${MONTHS[x.month-1]} income ${money(x.income)}" aria-pressed="false" style="height:${x.income?Math.max(3,x.income/maxTrend*100):3}%"><span class="trend-tooltip">Income<br><strong>${money(x.income)}</strong></span></button>
+        <button type="button" class="mini-bar expense" data-trend-bar data-trend-value="${money(x.expense)}" aria-label="${MONTHS[x.month-1]} expenses ${money(x.expense)}" aria-pressed="false" style="height:${x.expense?Math.max(3,x.expense/maxTrend*100):3}%"><span class="trend-tooltip">Expenses<br><strong>${money(x.expense)}</strong></span></button>
+      </div><span>${MONTHS_EN[x.month-1].slice(0,3)}</span></div>`).join('')}</div>
     </section>
     ${state.data.templates.length?`<section class="card" style="margin-top:12px"><div class="section-title"><h2>⚡ Quick log</h2><button class="btn small" data-action="addTx">＋ New entry</button></div><div class="chips">${state.data.templates.map(tp=>`<button class="chip quick-chip" data-log-template="${tp.id}">${categoryLabel(tp.categoryId)} ${esc(tp.label)}</button>`).join('')}</div></section>`:''}
     <div class="grid dashboard-grid" style="margin-top:12px"><section class="card"><div class="section-title"><h2>Recent transactions</h2><button class="btn small" data-action="addTx">＋ Add</button></div>${recent.length?`<div class="list">${recent.map(tx=>`<div class="row"><div><div class="row-title">${categoryLabel(tx.categoryId)}</div><div class="row-sub">${dateText(tx.date)} · ${accountLabel(tx.accountId)}${tx.note?` · ${esc(tx.note)}`:''}</div></div><div class="amount ${tx.type==='income'?'income-text':'expense-text'}">${tx.type==='income'?'+':'-'}${money(tx.amount)}</div></div>`).join('')}</div>`:'<div class="empty">No transactions this month. 🌱</div>'}</section>
@@ -446,6 +449,11 @@ async function render(){ await load(); $app.innerHTML=pageHTML(); bind(); if(sta
 function bind(){
   document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>{state.page=b.dataset.page;render();});
   document.querySelectorAll('[data-breakdown]').forEach(b=>b.onclick=()=>{state.modal={type:'breakdown',breakdownType:b.dataset.breakdown};render();});
+  document.querySelectorAll('[data-trend-bar]').forEach(b=>b.onclick=()=>{
+    const wasActive=b.classList.contains('active');
+    document.querySelectorAll('[data-trend-bar]').forEach(x=>{x.classList.remove('active');x.setAttribute('aria-pressed','false');});
+    if(!wasActive){b.classList.add('active');b.setAttribute('aria-pressed','true');}
+  });
   document.querySelectorAll('[data-open-breakdown-entries]').forEach(b=>b.onclick=()=>{state.txFilter.scope='month';state.txFilter.type=b.dataset.openBreakdownEntries;state.txFilter.accountId='all';state.txFilter.categoryId='all';state.txFilter.q='';state.modal=null;state.page='transactions';render();});
   document.querySelectorAll('[data-action]').forEach(b=>b.onclick=async()=>{
     const a=b.dataset.action;

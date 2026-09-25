@@ -414,3 +414,51 @@ html[data-theme="dark"] .breakdown-summary-row { background:#0d1625; }
   .breakdown-summary-row { grid-template-columns:minmax(0,1fr); gap:8px; }
   .breakdown-category-total { font-size:16px; }
 }
+
+
+/* Clickable values for the 6-month trend bars */
+.mini-trend-bars { overflow:visible; }
+.mini-bar {
+  position:relative;
+  width:12px;
+  min-height:3px;
+  border:0;
+  padding:0;
+  border-radius:6px 6px 2px 2px;
+  cursor:pointer;
+  flex:0 0 12px;
+  transition:transform .12s ease, filter .12s ease;
+}
+.mini-bar.income { background:var(--chart-income); }
+.mini-bar.expense { background:var(--chart-expense); }
+.mini-bar:hover,.mini-bar:focus-visible { filter:brightness(1.08); }
+.mini-bar:active { transform:scaleX(.88); }
+.mini-bar.active { outline:2px solid color-mix(in srgb,currentColor 35%,transparent); outline-offset:2px; }
+.trend-tooltip {
+  display:none;
+  position:absolute;
+  z-index:8;
+  left:50%;
+  bottom:calc(100% + 7px);
+  transform:translateX(-50%);
+  min-width:max-content;
+  padding:7px 9px;
+  border:1px solid var(--line);
+  border-radius:9px;
+  background:var(--card);
+  color:var(--ink);
+  box-shadow:var(--shadow);
+  font-size:10px;
+  line-height:1.25;
+  text-align:center;
+  pointer-events:none;
+  white-space:nowrap;
+}
+.trend-tooltip strong { font-size:11px; }
+.mini-bar.active .trend-tooltip { display:block; }
+html[data-theme="dark"] .trend-tooltip { background:#172033; }
+
+@media (max-width:430px) {
+  .trend-tooltip { font-size:9px; padding:6px 7px; }
+  .trend-tooltip strong { font-size:10px; }
+}
