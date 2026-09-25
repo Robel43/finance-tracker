@@ -1,63 +1,251 @@
 # BirrTrack — Ethiopian Calendar Personal Finance Tracker
 
-A dependency-free, fully offline PWA designed for personal use in Ethiopia.
+BirrTrack is a lightweight, dependency-free personal finance Progressive Web App (PWA) built for Ethiopian calendar-based money tracking. It runs entirely in the browser, works offline after installation, and stores financial data locally on the device using IndexedDB.
 
-## Included
+**Live app:** https://robel43.github.io/finance-tracker/
 
-- Ethiopian calendar date entry (13 months)
-- Pagumen transactions grouped into Nehase for monthly reports
-- Income and expense tracking, with emoji-labeled categories and accounts
-- Default categories based on the supplied workbook — add, rename, or delete your own from Settings
-- Accounts: BOA, Telebirr, CBE, Cash — each with its own emoji, editable
-- Loans given to people, with principal repayments tracked separately from income; loans and repayments can be edited/deleted
-- Transfers between your own accounts, with visible transfer history and edit/delete controls
-- Monthly income/expense comparison and two-month category comparison
-- JSON backup/restore
+## Core features
+
+- Ethiopian calendar date entry with all 13 months
+- Pagumen transactions included in Nehase for monthly financial reporting
+- Income and expense tracking
+- Custom income and expense categories with emoji labels
+- Multiple accounts such as bank accounts, mobile wallets, and cash
+- Account-to-account transfers
+- Personal loans and principal repayment tracking
+- JSON backup and restore
 - CSV transaction export
-- IndexedDB local storage only
-- Installable PWA + offline service worker
+- Fully local IndexedDB storage
+- Installable PWA with offline service worker
+- Responsive mobile interface
+- Light mode and persistent dark mode
 
-## Built for fast manual entry
+## Dashboard
 
-Since every transaction is typed in by hand, this version adds:
+The redesigned dashboard gives a quick monthly financial overview:
 
-- **Last-used account/category defaults** — a new transaction opens pre-filled with what you used last time.
-- **Duplicate (⧉) and edit (✎) on every transaction** — resubmit a similar entry or fix a typo without deleting and retyping.
-- **Quick-add amount chips** in the transaction form (+50 / +100 / +200 / +500 / +1000).
-- **Recurring templates** (Settings → Recurring templates) — save things like Salary or Rent once, then log them in one tap from the Dashboard's Quick log row.
-- **Monthly-first transaction history** — Transactions opens on the selected/current Ethiopian financial month (Pagumen rolls into Nehase), with an All time switch for full history.
-- **Search and filter** on the Transactions page — by text, type, account, or category.
-- **Category management** — add, rename, or delete categories (with an emoji picker) from Settings; a category in use can't be deleted until it's no longer referenced.
-- **Account management** — rename/re-emoji accounts and safely delete unused accounts; accounts referenced by transactions, loans, repayments, transfers, or templates are protected from deletion.
+- Total available balance across all accounts
+- Monthly Income, Expenses, and Net
+- Outstanding money loaned to other people
+- Savings rate
+- Highest expense category
+- Expense change compared with the previous month
+- Average monthly expense
+- Six-month Income vs Expenses trend
+- Recent transactions
+- Expense-category summary
+- Quick logging from recurring templates
+
+### Income and expense breakdown
+
+The **Income** and **Expenses** cards on the dashboard are interactive.
+
+Tap **Income** or **Expenses** to see the selected month's overall breakdown. Entries using the same category are automatically combined into one monthly category total.
+
+For example, if Transportation is entered several times during the month, BirrTrack shows one combined **Transportation** total.
+
+Each category breakdown shows:
+
+- Combined monthly amount
+- Number of entries in that category
+- Percentage of total monthly income or expenses
+- A proportional visual bar
+- Expandable individual entries
+- A shortcut to open the Transactions page already filtered to that month and type
+
+## Financial insights
+
+BirrTrack calculates useful insights directly from your local transaction data:
+
+- Monthly savings rate
+- Top expense category
+- Expense increase or decrease compared with the previous month
+- Average monthly expense for the selected Ethiopian year
+- Six-month Income vs Expenses trend
+
+The six-month chart is interactive. Tap an Income or Expenses bar to display its exact ETB value.
+
+## Compare
+
+The Compare page supports both annual and month-to-month analysis:
+
+- Year-to-date Income
+- Year-to-date Expenses
+- Year-to-date Net
+- Interactive annual Income vs Expenses chart
+- Net-only chart mode
+- Tap a month to view its exact Income, Expenses, Net, and entry count
+- Open the selected month's transactions directly
+- Compare any two Ethiopian financial months
+- Compare expense-category movement between two months
+
+Pagumen remains included in Nehase for financial reporting.
+
+## Accounts and balance history
+
+Each account has its own calculated balance based on:
+
+- Opening balance
+- Income
+- Expenses
+- Loans given
+- Loan repayments received
+- Transfers between accounts
+
+Tap **History** on an account to see:
+
+- Monthly closing-balance history
+- Recent account activity
+- Incoming and outgoing transfers
+- Loan activity
+- Income and expense movements
+
+Accounts that are still referenced by transactions, loans, repayments, transfers, or templates are protected from accidental deletion.
+
+## Faster transaction entry
+
+BirrTrack is designed for frequent manual entry on a phone.
+
+The transaction form includes:
+
+- Separate Income / Expense toggle
+- Large mobile-friendly amount field
+- Quick-add amount buttons
+- Recent amount shortcuts
+- Last-used account and category defaults
+- **Today** shortcut for the Ethiopian date
+- Repeat a recent transaction
+- Duplicate and edit existing transactions
+- Search and filtering by text, type, account, and category
+- Monthly-first transaction history with an All time option
+
+## Recurring templates
+
+Create reusable entries from **Settings → Recurring templates** for transactions such as:
+
+- Salary
+- Rent
+- Internet
+- Transport
+- Regular household expenses
+
+Saved templates appear in the Dashboard's **Quick log** section for one-tap entry.
+
+## Dark mode
+
+BirrTrack includes Light and Dark themes.
+
+Use the moon/sun button in the top bar or the Appearance option in Settings. The selected theme is remembered on the device. On first use, BirrTrack can follow the device's preferred color scheme.
+
+## Install on Android
+
+1. Open Chrome on your phone.
+2. Visit https://robel43.github.io/finance-tracker/
+3. Wait for the app to finish loading.
+4. Open Chrome's menu.
+5. Choose **Install app** or **Add to Home screen**.
+6. Confirm installation.
+7. Open BirrTrack from the new home-screen icon.
+
+After the first successful online load, BirrTrack can operate offline.
+
+## Install on iPhone
+
+1. Open Safari.
+2. Visit https://robel43.github.io/finance-tracker/
+3. Tap **Share**.
+4. Choose **Add to Home Screen**.
+5. Confirm **Add**.
+6. Launch BirrTrack from the home-screen icon.
 
 ## Run locally
 
-A PWA service worker needs HTTP/HTTPS, so do not open index.html directly as a file.
+Because BirrTrack is configured for the GitHub Pages project path **/finance-tracker/**, the easiest local setup is to serve the parent folder of the repository.
 
-From this folder run one of:
+Example:
 
-```bash
-python3 -m http.server 8080
+```text
+Projects/
+└── finance-tracker/
+    ├── index.html
+    ├── app.js
+    ├── styles.css
+    ├── manifest.webmanifest
+    └── sw.js
 ```
 
-Then open `http://localhost:8080`.
+From the **Projects** folder run:
 
-For real installation on your phone, host this folder on an HTTPS static host (GitHub Pages, Cloudflare Pages, Netlify). A plain PC-hotspot IP over HTTP will not allow the service worker to register, so the app won't be fully installable/offline that way — use HTTPS for the real install, and your local hotspot only for quick testing.
+```bash
+python -m http.server 8080
+```
 
-After the first HTTPS visit, install it from the browser menu ("Add to Home Screen") and it will work fully offline afterward — your data stays in IndexedDB on your phone.
+Then open:
 
-## Deploy to your GitHub repository
+```text
+http://localhost:8080/finance-tracker/
+```
 
-Repository: `https://github.com/Robel43/finance-tracker.git`
+This keeps the local URL structure consistent with the GitHub Pages deployment path.
 
-Put the files in this folder at the **repository root** (so `index.html` is at the top level), commit, and push to `main`. Then in GitHub open **Settings → Pages**, choose **Deploy from a branch**, select `main` and `/(root)`, and save.
+## GitHub Pages deployment
 
-The project uses only relative URLs, so it works correctly from the GitHub Pages project path (`/finance-tracker/`). After an update, an already-installed PWA may need to be closed/reopened or refreshed once so the new service worker cache takes control. Existing IndexedDB finance data is preserved across normal app updates.
+Repository:
+
+```text
+https://github.com/Robel43/finance-tracker.git
+```
+
+The production site is deployed from the `main` branch using GitHub Pages:
+
+```text
+https://robel43.github.io/finance-tracker/
+```
+
+The manifest, PWA scope, start URL, and icon paths are configured for the `/finance-tracker/` project path.
+
+After a new deployment, an installed PWA may need to be refreshed or completely closed and reopened once so the updated service worker takes control.
+
+Normal application updates do **not** delete existing IndexedDB finance data.
+
+## Backup and restore
+
+Your financial data is stored locally on the device, not in the GitHub repository.
+
+Use:
+
+**Settings → Export JSON backup**
+
+regularly and keep the exported file somewhere safe.
+
+Restoring a JSON backup replaces the current local dataset after showing a preview.
+
+CSV export is also available for transaction analysis outside BirrTrack.
 
 ## Privacy
 
-The app contains no analytics, login, API calls, cloud database, external fonts, or third-party scripts.
+BirrTrack currently uses:
 
-## Backup
+- No analytics
+- No login
+- No cloud database
+- No advertising
+- No external fonts
+- No third-party scripts
+- No remote financial-data API
 
-Use Settings → Export JSON backup regularly. Restoring a backup replaces the current local dataset after showing a preview. Upgrading from an older BirrTrack version keeps your existing data — a new "templates" store is added automatically the first time you open the updated app.
+Financial records remain in the device's browser storage unless the user explicitly exports a backup.
+
+## Technology
+
+BirrTrack intentionally keeps the stack small:
+
+- HTML
+- CSS
+- Vanilla JavaScript
+- IndexedDB
+- Service Worker
+- Web App Manifest
+- GitHub Pages
+
+No framework or runtime dependency is required.
