@@ -12,6 +12,18 @@ const ACC_EMOJI = { Checking:'🏦', Savings:'💰', Wallet:'📱', Cash:'💵',
 const CATEGORY_EMOJI_PICKS = ['🍽️','🚌','🧴','💡','🏠','🧾','💼','💻','💹','➕','🛒','📚','🏥','🎉','📱','⛽','🐾','✈️','☕','👕','🎁','💊'];
 const ACCOUNT_EMOJI_PICKS = ['🏦','💰','📱','💵','💳','🐖','🏧','🌐'];
 const QUICK_AMOUNTS = [50,100,200,500,1000];
+const THEME_KEY = 'birrtrack-theme';
+
+function currentTheme(){ return document.documentElement.dataset.theme==='dark' ? 'dark' : 'light'; }
+function applyTheme(theme,persist=true){
+  const next=theme==='dark'?'dark':'light';
+  document.documentElement.dataset.theme=next;
+  document.documentElement.style.colorScheme=next;
+  const meta=document.querySelector('meta[name="theme-color"]');
+  if(meta) meta.setAttribute('content',next==='dark'?'#0b1220':'#16324f');
+  if(persist){ try{ localStorage.setItem(THEME_KEY,next); }catch{} }
+}
+function toggleTheme(){ applyTheme(currentTheme()==='dark'?'light':'dark'); }
 
 const $app = document.querySelector('#app');
 const state = { page:'dashboard', reportYear:null, reportMonth:null, modal:null, data:null, toast:null, compareA:1, compareB:2, compareSelectedMonth:null, txFilter:{scope:'month',q:'',type:'all',accountId:'all',categoryId:'all'} };
@@ -109,7 +121,7 @@ function toast(msg){ state.toast=msg; render(); setTimeout(()=>{state.toast=null
 function layout(content){
   const nav=[['dashboard','🏠','Home'],['transactions','💸','Entries'],['loans','🤝','Loans'],['compare','📊','Compare'],['accounts','🏦','Accounts'],['settings','⚙️','Settings']];
   return `<div class="app-shell">
-    <header class="topbar"><div class="brand"><div class="brand-mark">ብ</div><div>BirrTrack</div></div><div class="top-actions"><button class="icon-btn" data-action="addTx" title="Add transaction">➕</button></div></header>
+    <header class="topbar"><div class="brand"><div class="brand-mark">ብ</div><div>BirrTrack</div></div><div class="top-actions"><button class="icon-btn theme-toggle" data-action="toggleTheme" title="Switch to ${currentTheme()==='dark'?'light':'dark'} mode" aria-label="Switch to ${currentTheme()==='dark'?'light':'dark'} mode">${currentTheme()==='dark'?'☀️':'🌙'}</button><button class="icon-btn" data-action="addTx" title="Add transaction">➕</button></div></header>
     <div class="flag-accent"></div>
     <main>${content}</main>
     <nav class="nav">${nav.map(([p,i,l])=>`<button data-page="${p}" class="${state.page===p?'active':''}"><span class="ico">${i}</span>${l}</button>`).join('')}</nav>
@@ -234,6 +246,7 @@ function settings(){
   const incomeCats=state.data.categories.filter(c=>c.type==='income');
   const catChip=c=>`<span class="chip cat-chip">${catEmoji(c)} ${esc(c.name)}<button class="chip-icon" data-edit-category="${c.id}" title="Edit">✎</button><button class="chip-icon" data-delete-category="${c.id}" title="Delete">✕</button></span>`;
   return layout(`<div class="page-head"><div><h1>Settings & Backup</h1><p>Nothing is sent to a server.</p></div></div><div class="grid">
+    <section class="card appearance-card"><div class="section-title"><div><h2>🌓 Appearance</h2><div class="row-sub">Current theme: <strong>${currentTheme()==='dark'?'Dark':'Light'}</strong></div></div><button class="btn small secondary" data-action="toggleTheme">${currentTheme()==='dark'?'☀️ Light mode':'🌙 Dark mode'}</button></div></section>
     <section class="card"><div class="section-title"><h2>💾 Backup & restore</h2></div><div class="notice">Your data exists only on this device. Export a backup regularly and keep the file somewhere safe.</div><div class="form-actions" style="justify-content:flex-start;flex-wrap:wrap"><button class="btn" data-action="exportBackup">⬇️ Export JSON backup</button><label class="btn secondary" style="display:inline-block">⬆️ Import JSON<input id="importFile" type="file" accept="application/json,.json" hidden></label><button class="btn secondary" data-action="exportCsv">📄 Export CSV</button></div></section>
     <section class="card"><div class="section-title"><h2>🏷️ Categories</h2><button class="btn small" data-action="addCategory">＋ Add</button></div><div class="cat-group"><h3>Expense</h3><div class="chips">${expenseCats.length?expenseCats.map(catChip).join(''):'<span class="muted">None yet.</span>'}</div></div><div class="cat-group" style="margin-top:12px"><h3>Income</h3><div class="chips">${incomeCats.length?incomeCats.map(catChip).join(''):'<span class="muted">None yet.</span>'}</div></div></section>
     <section class="card"><div class="section-title"><h2>⚡ Recurring templates</h2><button class="btn small" data-action="addTemplate">＋ Add</button></div>${state.data.templates.length?`<div class="list">${state.data.templates.map(t=>`<div class="row"><div><div class="row-title">${categoryLabel(t.categoryId)} ${esc(t.label)}</div><div class="row-sub">${t.type==='income'?'Income':'Expense'} · ${accountLabel(t.accountId)}${t.amount?` · ${money(t.amount)}`:' · amount set when logging'}</div></div><div style="display:flex;gap:6px"><button class="chip" data-edit-template="${t.id}">Edit</button><button class="chip" data-delete-template="${t.id}">Delete</button></div></div>`).join('')}</div>`:'<div class="empty">No templates yet. Add one for things like Salary or Rent to log them in one tap from the dashboard.</div>'}</section>
@@ -316,6 +329,7 @@ function bind(){
     if(a==='addTransfer') state.modal={type:'transfer'};
     if(a==='addCategory') state.modal={type:'category'};
     if(a==='addTemplate') state.modal={type:'template'};
+    if(a==='toggleTheme'){ toggleTheme(); return render(); }
     if(a==='closeModal') state.modal=null;
     if(a==='prevMonth') return changeMonth(-1);
     if(a==='nextMonth') return changeMonth(1);
@@ -388,6 +402,7 @@ function bind(){
 }
 
 async function init(){
+  applyTheme(currentTheme(),false);
   const d=currentEthiopianDate(); state.reportYear=d.year; state.reportMonth=Math.min(d.month,12); state.compareSelectedMonth=state.reportMonth;
   await seed(); await render();
   if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
